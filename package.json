@@ -1,0 +1,23 @@
+{
+  "name": "meli-node-cli",
+  "version": "1.0.0",
+  "description": "A simple command Line Interface for Mercado Livre API.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "meli-node-cli"
+  },
+  "keywords": [
+    "Alpha"
+  ],
+  "author": "Nicholas Roncally",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.17.3",
+    "node-fetch": "^2.6.7",
+    "repl": "^0.1.3"
+  }
+}
