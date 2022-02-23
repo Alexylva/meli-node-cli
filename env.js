@@ -56,7 +56,3 @@ module.exports = {
     getAppKeys,
     session_path
 }
-
-//#.env file
-//APP_ID=7740117095200548 
-//SECRET=ssxPhWJcrPYTJm3NZLqrwDNOhrugS7qk
