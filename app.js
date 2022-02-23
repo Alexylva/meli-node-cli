@@ -3,14 +3,7 @@
 **/
 const app_id = process.env.APP_ID;
 const secret = process.env.SECRET;
+const session_path = process.env.SESSION_PATH;
 
-const session_file = {dir:"./data/", file: "session.json", path() { return this.dir + this.file } } ;
-/** 
- * Imports
-**/
-
-const utils = require("./utils")
-
-
-
+const path = require('path');
 
