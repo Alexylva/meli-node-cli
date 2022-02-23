@@ -49,8 +49,8 @@ let repl = {
     })
 
     r.defineCommand('profile', (profile) => {
-      sessionApi.setSlot(profile);
-      setPromptProfile(r, profile)
+      sessionApi.setProfile(profile);
+      setPromptProfile(r, profile);
       console.log(`Defined current profile as ${profile}`, true, false);
     });
 
@@ -104,6 +104,7 @@ let repl = {
 }
 function setPromptProfile(repl, profile) {
   repl.setPrompt(`${profile}@${DEFAULT_PROMPT}`);
+  repl.displayPrompt();
 }
 
 module.exports = repl;
