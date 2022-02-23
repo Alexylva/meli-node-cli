@@ -4,7 +4,6 @@
 
 function setup(mlApi, sessionApi) {
   return new Promise(resolve => {
-    console.log(JSON.stringify(mlApi, null, 2));
     const express = require("express");
     const http = express();
 
