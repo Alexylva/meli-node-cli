@@ -44,7 +44,7 @@ module.exports = {
     const data = await response.json();
 
     console.log(`Access Token: ${data.access_token}`, true);
-    setAccessToken(data);
+    setAccessToken(data.access_token, data);
   },
 
 
