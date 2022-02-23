@@ -20,12 +20,14 @@ function getSession() {
 
 function setAuth(auth) {
   getSession().auth = auth;
+  saveSession();
 }
 
 function createSession() {
   if (!hasSessionProfile()) session.profile = 'main';
   if (!hasSessionProfiles()) session.profiles = {};
   session.profiles[session.profile] = {};
+  saveSession();
 }
 
 function hasSession() {
@@ -48,6 +50,7 @@ function saveSession() {
 
 function setProfile(profile) {
   session.profile = profile;
+  saveSession();
 }
 
 function getProfileNames() {
@@ -83,6 +86,7 @@ function addTestUser(user) {
   let s = getSession();
   if (!s.hasTestUsers()) s.testUsers = [];
   s.testUsers.push(user);
+  saveSession();
 }
 
 function getTestUsers() {
