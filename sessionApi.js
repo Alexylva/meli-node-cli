@@ -117,6 +117,7 @@ function loadSession(session_file) {
  * File Management
 **/
 const path = require('path');
+const fs = require('fs');
 
 function storeData(data, session_file) {
   if (!fs.existsSync(path.dirname(session_file))) {
