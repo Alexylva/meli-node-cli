@@ -66,7 +66,7 @@ function hasAccessToken() { //Maybe add a validity check later?
 }
 
 function getAccessToken() {
-  if (!this.hasAccessToken()) return;
+  if (!hasAccessToken()) return;
   return getSession().access_token;
 }
 
