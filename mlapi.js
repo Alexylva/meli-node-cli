@@ -3,16 +3,17 @@
 **/
 const fetch = require('node-fetch');
 
-let getAccessToken, getAppKeys;
+let setAccessToken, getAccessToken, getAppKeys;
 
 module.exports = {
 
-  setup(accessTokenGetter, appKeysGetter) {
+  setup(accessTokenGetter, accessTokenSetter, appKeysGetter) {
     getAccessToken = accessTokenGetter;
+    setAccessToken = accessTokenSetter;
     getAppKeys = appKeysGetter;
   },
 
-  async fetchAccessToken(auth, callback) {
+  async fetchAccessToken(auth) {
     const appkeys = getAppKeys();
 
     const response = await fetch('https://api.mercadolibre.com/oauth/token', {
@@ -30,7 +31,7 @@ module.exports = {
     const data = await response.json();
 
     console.log(`Access Token: ${data.access_token}`, true);
-    callback(data);
+    setAccessToken(data);
   },
 
 

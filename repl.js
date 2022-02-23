@@ -1,89 +1,109 @@
 /** 
  * REPL
 **/
+const DEFAULT_PROMPT = 'meli-cli > ';
 
 let oldlog = console.log;
-let reviveFunction = () => {};
-console.log = 
-  (logdata,revive = false,newline = true) => { 
-    oldlog(`${ newline ? '\n' : '' }[${ new Date().toLocaleString() }] ${ logdata }`); 
-    if (revive) reviveFunction()
+let reviveFunction = () => { };
+
+// Console.log override for log formatting
+console.log =
+  (logdata, revive = false, newline = true) => {
+    oldlog(`${newline ? '\n' : ''}[${new Date().toLocaleString()}] ${logdata}`);
+    if (revive) reviveFunction();
   };
 
-let repl = (sessionApi, mlApi) => {
-  const repl = require("repl");
+/**
+ * REPL Server to allow for interactive command interface.
+ */
+let repl = {
+  setup(sessionApi, mlApi) {
+    const repl = require("repl");
 
-  const r = repl.start({ prompt: "mlb-skuchanger > " });
-  reviveFunction = r._refreshLine;
+    const r = repl.start({ prompt: DEFAULT_PROMPT });
+    setPromptProfile(r, sessionApi.getProfile());
+    reviveFunction = r._refreshLine;
 
-  r.defineCommand( 'accessToken', {
-    help: 'Show accessToken',
-    action () {
-      sessionApi.getAccessToken();
-    }
-  })
+    r.defineCommand('accessToken', {
+      help: 'Show accessToken',
+      action() {
+        sessionApi.getAccessToken();
+      }
+    })
 
-  r.defineCommand( 'setAccessToken', {
-    help: 'Manually updates ML\'s access token',
-    action (token) {
-      if (session[slot]) session[slot].access_token = token;
-      console.log("Access Token updated.", true, false)
-    }
-  })
+    r.defineCommand('setAccessToken', {
+      help: 'Manually updates ML\'s access token',
+      action(token) {
+        sessionApi.setAccessToken(token);
+        console.log("Access Token updated.", true, false)
+      }
+    })
 
-  r.defineCommand('item', {
-    help: 'Gets item info',
-    action(param) {
-      if (!session[slot].access_token) return;
-      let params = param.split(" ", 2);
-      getItem(...params);
-    }
-  })
+    r.defineCommand('item', {
+      help: 'Gets item info',
+      action(param) {
+        if (!sessionApi.hasAccessToken()) return onErr('Missing or Invalid Access Token.');
+        let params = param.split(" ", 2);
+        mlApi.getItem(...params);
+      }
+    })
 
-  r.defineCommand( 'slot', (id) => {
-      getSession().setSlot(id);
-      console.log(`Defined current slot as ${id}`,true, false);
+    r.defineCommand('profile', (profile) => {
+      sessionApi.setSlot(profile);
+      setPromptProfile(r, profile)
+      console.log(`Defined current profile as ${profile}`, true, false);
     });
 
-  r.defineCommand('getSlot', () => console.log(`Current slot: ${slot}`, true, false));
+    r.defineCommand('getProfile', () =>
+      console.log(`Current slot: ${sessionApi.getSlot()}`, true, false)
+    );
 
-  r.defineCommand('changeSku', {
-    help: 'Manually changes a ad\'s SKU',
-    action (param) {
-    if (!session[slot].access_token) return;
-    let params = param.split(" ", 4);
-    changeSku(...params);
-    }
-  })
+    r.defineCommand('changeSku', {
+      help: 'Manually changes a ad\'s SKU',
+      action(param) {
+        if (!sessionApi.hasAccessToken()) return onErr('Missing or Invalid Access Token.');
+        let params = param.split(" ", 4);
+        mlApi.changeSku(...params);
+      }
+    })
 
-  r.defineCommand('createTestUser', {
-    help: 'Creates a testing purpose user.',
-    action () {
-      if (!session[slot].access_token) return;
-      createTestUser();
-    }
-  })
+    r.defineCommand('createTestUser', {
+      help: 'Creates a testing purpose user.',
+      action() {
+        if (!sessionApi.hasAccessToken()) return onErr('Missing or Invalid Access Token.');
+        let testUser = mlApi.createTestUser();
+        if (!testUser) return onErr('Failed creating test user.')
+        sessionApi.addTestUser(testUser);
+      }
+    })
 
-  r.defineCommand('testUsers', {
-    help: 'Show stored test users',
-    action () {
-    if (session.testUsers) console.log(JSON.stringify(session.testUsers, null, 2), false, false);
-    console.log('More info on https://developers.mercadolivre.com.br/pt_br/realizacao-de-testes', true);
-    }
-  })
+    r.defineCommand('testUsers', {
+      help: 'Show stored test users',
+      action() {
+        if (sessionApi.hasTestUsers()) {
+          console.log(JSON.stringify(sessionApi.getTestUsers(), null, 2), false, false);
+          console.log('More info on https://developers.mercadolivre.com.br/pt_br/realizacao-de-testes', true);
+        }
+      }
+    })
 
-  r.defineCommand('me', {
-    help: "Gets account personal info, acts as a access benchmark",
-    action() {
-      if (!session[slot].access_token) return;
-      getMe();
-    }
-  })
+    r.defineCommand('me', {
+      help: "Gets account personal info, acts as a access benchmark",
+      action() {
+        if (!sessionApi.hasAccessToken()) return onErr('Missing or Invalid Access Token.');
+        console.log(JSON.stringify(mlApi.getMe(), null, 2));
+      }
+    })
 
-  r.on('exit', () => {
-    console.log('Quitting');
-    process.exit();
-  });
+    r.on('exit', () => {
+      console.log('Quitting');
+      process.exit();
+    });
+    return repl;
+  }
+}
+function setPromptProfile(repl, profile) {
+  repl.setPrompt(`${profile}@${DEFAULT_PROMPT}`);
 }
 
 module.exports = repl;
