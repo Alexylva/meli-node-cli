@@ -8,9 +8,22 @@ let setAccessToken, getAccessToken, getAppKeys;
 module.exports = {
 
   setup(accessTokenGetter, accessTokenSetter, appKeysGetter) {
-    getAccessToken = accessTokenGetter;
-    setAccessToken = accessTokenSetter;
-    getAppKeys = appKeysGetter;
+    return new Promise (resolve => {
+      getAccessToken = accessTokenGetter;
+      setAccessToken = accessTokenSetter;
+      getAppKeys = appKeysGetter;
+
+      hostname = 'localhost';
+      port = 63771;
+      server_url = `http://${hostname}:${port}/`
+      auth_resource = `code`;
+      auth_url = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${getAppKeys().app_id}&redirect_uri=${server_url}${auth_resource}`
+      module.exports.server_url = server_url;
+      module.exports.auth_resource = auth_resource;
+      module.exports.port = port;
+      module.exports.auth_url = auth_url; //Yeah ugly af
+      resolve();
+    })
   },
 
   async fetchAccessToken(auth) {

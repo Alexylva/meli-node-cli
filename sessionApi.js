@@ -6,13 +6,20 @@ const DEFAULT_SLOT = 'main';
 let session_file, session;
 
 function setup(filename) {
-  session_file = filename;
-  session = loadSession(session_file);
+  return new Promise(resolve => {
+    session_file = filename;
+    session = loadSession(session_file);
+    resolve();
+  })
 }
 
 function getSession() {
   if (!hasSession()) createSession(); 
   return session.profiles[session.profile];
+}
+
+function setAuth(auth) {
+  getSession().auth = auth;
 }
 
 function createSession() {
@@ -96,7 +103,8 @@ module.exports = {
   hasTestUsers,
   addTestUser,
   getTestUsers,
-  getProfile
+  getProfile,
+  setAuth
 }
 
 function loadSession(session_file) {
