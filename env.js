@@ -1,6 +1,7 @@
 /**
  * Configurations
 **/
+
 const path = require('dotenv').config();
 let app_id = process.env.APP_ID;
 let secret = process.env.SECRET;
@@ -13,34 +14,46 @@ function setup() {
     return Promise.resolve();
 }
 
-function buildEnv(resolve) {
-    const readline = require('readline');
-    const rl = readline.createInterface({
+async function buildEnv(resolve) {
+    const { createInterface } = require('readline');
+    const { join } = require('path');
+    const rl = createInterface({
         input: process.stdin,
         output: process.stdout
     });
 
-    rl.question('Insert your APP_ID: ', (aid) => {
-        rl.question('Insert your APP_SECRET: ', (sct) => {
-            rl.question(`Leave default session path? (${process.cwd()}\\.session\\) [y/N]`, (answer) => {
-                let path;
-                switch (answer) {
-                    case 'Y':
-                    case 'y':
-                        r1.question(`Insert dirpath for session file: `, (path) => {
-                            path = require('path').join(path, 'session.json');
-                        })
-                        break;
-                    default:
-                        path = "./.session/session.json";
-                }
-                saveEnv(aid, sct, path);
-                resolve(true);
-                rl.close();
-            })
-        })
+    const DEFAULT_PATH = join(process.cwd(), "/.session/",  "session.json");
+
+    let aid  = await question('Insert APP_ID: ');
+    let sct  = await question('Insert your APP_SECRET: ');
+    let path = await question(`Change default session path? (${DEFAULT_PATH}) [y/N] `, 
+        async (answer, resolve) => {
+            let path;
+            switch (answer) {
+                case 'Y': case 'y':
+                    path = await question(`Insert dirpath for session file: `);
+                    path = join(path, 'session.json');
+                    break;
+                default:
+                    path = DEFAULT_PATH;
+            }
+            return resolve (path);
     });
-}
+
+    saveEnv(aid, sct, path);
+    resolve(true);
+    rl.close();
+
+    function question(prompt, callback) {
+        return new Promise(resolve => { rl.question(prompt, (answer) => { 
+            if (!callback) {
+                resolve(answer);
+                return;
+            }
+            callback(answer, resolve);
+        }); });
+    }
+};
 
 function saveEnv(aid, sct, path) {
     const fs = require('fs');
