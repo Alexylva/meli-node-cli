@@ -1,7 +1,8 @@
 /**
  * API Implementation
 **/
-const fetch = require('node-fetch');
+let fetch = require('node-fetch');
+//fetch = (...a) => { console.log(JSON.stringify(a)); return { json() {return {}; }} };
 
 let setAccessToken, getAccessToken, getAppKeys;
 
@@ -59,10 +60,10 @@ module.exports = {
   	  'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-  	variations: [{
-  	    id: vari,
-  	    seller_custom_field: sku
-  	}]
+        variations: [{
+            id: vari,
+            seller_custom_field: sku
+        }]
       })
     })
     const data = await response.json();
