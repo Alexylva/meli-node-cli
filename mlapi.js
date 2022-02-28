@@ -29,7 +29,7 @@ module.exports = {
 
   async fetchAccessToken(auth) {
     const appkeys = getAppKeys();
-
+    
     const response = await fetch('https://api.mercadolibre.com/oauth/token', {
       method: 'POST',
       headers: {
@@ -47,7 +47,6 @@ module.exports = {
     console.log(`Access Token: ${data.access_token}`, true);
     setAccessToken(data.access_token, data);
   },
-
 
   // .changeSku MLB2181674098 174214094869 SUCCESSSKU
   async changeSku(mlb, vari, sku, silent) {
