@@ -71,7 +71,7 @@ function getAccessToken() {
 }
 
 function setAccessToken(token, data = undefined) {
-  getSession().tokenDetails = data; //May undefine
+  getSession().token_details = data; //May undefine
   getSession().access_token = token;
   saveSession();
 }

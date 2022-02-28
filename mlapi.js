@@ -15,7 +15,7 @@ module.exports = {
       getAppKeys = appKeysGetter;
 
       hostname = 'localhost';
-      port = 63771;
+      port = 63771; //🤔 Perhaps choose port at random?
       server_url = `http://${hostname}:${port}/`
       auth_resource = `code`;
       auth_url = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${getAppKeys().app_id}&redirect_uri=${server_url}${auth_resource}`
