@@ -16,7 +16,12 @@ function setup(mlApi, sessionApi) {
       console.log(`Auth Code: ${auth} for slot "${sessionApi.getProfile()}"`, true);
       sessionApi.setAuth(auth);
       res.send("<script>window.close()</script>");
-      mlApi.fetchAccessToken(auth);
+
+      mlApi.fetchAccessToken(auth).then((data) => {
+        console.log(`Access Token: ${data.access_token}`, true);
+        sessionApi.setAccessToken(data.access_token, data);
+      });
+      
     });
 
     http.listen(mlApi.port, () => {

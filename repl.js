@@ -91,7 +91,7 @@ let repl = {
       help: "Gets account personal info, acts as a access benchmark",
       action() {
         if (!sessionApi.hasAccessToken()) return onErr('Missing or Invalid Access Token.');
-        console.log(JSON.stringify(mlApi.getMe(), null, 2));
+        mlApi.getMe().then(data => { console.log(JSON.stringify(data, null, 2)) });
       }
     })
 
