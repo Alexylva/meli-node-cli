@@ -3,7 +3,7 @@
 **/
 const DEFAULT_SLOT = 'main';
 
-let session_file, session;
+let session_file, session, auth_url;
 
 function setup(filename) {
   return new Promise(resolve => {
@@ -61,8 +61,25 @@ function getProfile() {
   return session.profile;
 }
 
+function verifyAccessToken (url) {
+  auth_url = url;
+  //Perhaps add date validity?
+  if (!hasAccessToken()) requestNewAccessToken(url);
+}
+
+function newAccessToken() {
+  delete getSession().access_token;
+  delete getSession().token_details;
+  requestNewAccessToken(auth_url);
+  saveSession();
+}
+
+function requestNewAccessToken(auth_url) {
+  console.log(`Use this link to get the token ${auth_url}`);
+}
+
 function hasAccessToken() { //Maybe add a validity check later?
-  return (typeof getSession().access_token !== 'undefined');
+  return (typeof getSession().access_token !== 'undefined' && getSession().access_token !== '');
 }
 
 function getAccessToken() {
@@ -101,6 +118,8 @@ module.exports = {
   getProfileNames,
   saveSession,
   setProfile,
+  newAccessToken,
+  verifyAccessToken,
   setAccessToken,
   getAccessToken,
   hasAccessToken,
