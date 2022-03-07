@@ -15,22 +15,34 @@ function setup(accessTokenGetter, accessTokenSetter, appKeysGetter) {
   })
 }
 
-async function fetchAccessToken(auth) {
+function fetchAccessToken(auth, redirect_uri) {
   const appkeys = getAppKeys();
-  const response = await request('oauth/token', 'POST', 
+  return request('oauth/token', 'POST', 
     `grant_type=authorization_code
      &client_id=${appkeys.app_id}
      &client_secret=${appkeys.secret}
      &code=${auth}
-     &redirect_uri=${server_url}${auth_resource}`, {
+     &redirect_uri=${redirect_uri}`, {
     'accept': 'application/json',
     'content-type': 'application/x-www-form-urlencoded'},
   );
-  return response.json();
 }
 
+function getMe() {
+  return request('users/me');;
+}
+
+function getItem(mlb) {
+  return request(`items/${mlb}`);
+}
+function getItemVari(mlb, vari) {
+  return request(`items/${mlb}/variations/${vari}`);
+}
+
+
+
 // .changeSku MLB2181674098 174214094869 SUCCESSSKU
-async function changeSku(mlb, vari, sku, verbose = false) {
+function changeSku(mlb, vari, sku, verbose = false) {
   if (!isMLBValid(mlb)) throw new Error("Invalid MLB");
 
   if (isVariValid(vari)) {
@@ -40,23 +52,12 @@ async function changeSku(mlb, vari, sku, verbose = false) {
   }
 }
 
-async function getMe() {
-  const response = await request('users/me');
-  return response.json();
-}
-
-async function getItem(mlb) {
-  const response = await request(`items/${mlb}`);
-  return response.json();
-}
-
-async function createTestUser() {
-  const response = await request('users/test_user', 'POST', {"site_id":"MLB"});
-  const data = response.json();
-  if (!isError(data)) {
-    return data;
+function createTestUser() {
+  const response = request('users/test_user', 'POST', {"site_id":"MLB"});
+  if (!isError(response)) {
+    return response;
   } else {
-    throw new Error("Couldn't create new Test User.\n" + data);
+    throw new Error("Couldn't create new Test User.\n" + response);
   }
 }
 
@@ -66,6 +67,7 @@ module.exports = {
   changeSku,
   getMe,
   getItem,
+  getItemVari,
   createTestUser
 }
 
@@ -76,20 +78,22 @@ module.exports = {
 async function _changeSkuVari(mlb, vari, sku) {
   console.log(`Changing SKU for ${mlb}${vari} to ${sku}`);
 
-  const item = getItem(mlb);
-  if (isError(item)) throw new Error("Error fetching item.");
+  const item = await getItemVari(mlb,vari);
+  if (isError(item)) return onErr(item.message);
+  console.log(JSON.stringify(item,null,2));
 
-  return;
+  item.attributes.push({
+    id: "SELLER_SKU",
+    value_name: sku
+  })
 
-  const response = request(`items/${mlb}`, 'PUT', {
-      variations: [{
-          id: vari,
-          seller_custom_field: sku
-      }]
+  const response = request(`items/${mlb}/variations/${vari}`, 'PUT', {
+    id: vari,
+    attributes: item.attributes
   });
-  const data = await response.json();
+  const data = await response;
 
-  if (data.warnings || !silent) console.log(`Server Answer: ${JSON.stringify(data, null, 2)}`, true);
+  if (data.warnings) console.log(`Server Answer: ${JSON.stringify(data, null, 2)}`, true);
 }
 
 async function _changeSkuReg(mlb, sku) {
@@ -101,7 +105,7 @@ async function _changeSkuReg(mlb, sku) {
  * Request Shorthands
  */
 
-async function request(path, method = 'GET', body = '', headers = makeHeaders()) {
+function request(path, method = 'GET', body = '', headers = makeHeaders()) {
   const options = {
     method,
     headers
@@ -113,7 +117,7 @@ async function request(path, method = 'GET', body = '', headers = makeHeaders())
       options.body = JSON.stringify(body);
     }
   }
-  return await fetch(API_URL + path, options);
+  return fetch(API_URL + path, options).then(response => response.json());
 }
 
 function makeHeaders() {
@@ -135,4 +139,13 @@ function isVariValid(vari){
 
 function isMLBValid(mlb) {
   return /^ML[A-Z]\d{9,11}$/.test(mlb);
+}
+
+function isError(response) {
+  return (typeof response.error !== 'undefined' || (typeof response.status !== 'undefined' && response.status >= 300));
+}
+
+function onErr(e) {
+  console.log(e, true, false);
+  return undefined;
 }
