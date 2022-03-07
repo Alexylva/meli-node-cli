@@ -9,7 +9,7 @@ function main(args) {
     env.setup().then(async () => {
         await sessionApi.setup(env.session_path);
         await mlApi.setup(sessionApi.getAccessToken, sessionApi.setAccessToken, env.getAppKeys);
-        await http.setup(mlApi, sessionApi);
+        await http.setup(mlApi.fetchAccessToken, sessionApi, env.getAppKeys);
         await repl.setup(sessionApi, mlApi);
     });
 }
