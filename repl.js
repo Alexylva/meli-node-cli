@@ -24,12 +24,16 @@ let repl = {
     setPromptProfile(r, sessionApi.getProfile());
     reviveFunction = r._refreshLine;
 
+    r.defineCommand('newAccessToken', () => {
+      sessionApi.newAccessToken();
+    });
+
     r.defineCommand('accessToken', {
       help: 'Show accessToken',
       action() {
         sessionApi.getAccessToken();
       }
-    })
+    });
 
     r.defineCommand('setAccessToken', {
       help: 'Manually updates ML\'s access token',
@@ -37,16 +41,16 @@ let repl = {
         sessionApi.setAccessToken(token);
         console.log("Access Token updated.", true, false)
       }
-    })
+    });
 
     r.defineCommand('item', {
       help: 'Gets item info',
       action(param) {
         if (!sessionApi.hasAccessToken()) return onErr('Missing or Invalid Access Token.');
         let params = param.split(" ", 2);
-        mlApi.getItem(...params);
+        mlApi.getItem(...params).then(log);
       }
-    })
+    });
 
     r.defineCommand('profile', (profile) => {
       sessionApi.setProfile(profile);
@@ -65,15 +69,16 @@ let repl = {
         let params = param.split(" ", 4);
         mlApi.changeSku(...params);
       }
-    })
+    });
 
     r.defineCommand('createTestUser', {
       help: 'Creates a testing purpose user.',
       action() {
         if (!sessionApi.hasAccessToken()) return onErr('Missing or Invalid Access Token.');
-        let testUser = mlApi.createTestUser();
-        if (!testUser) return onErr('Failed creating test user.')
-        sessionApi.addTestUser(testUser);
+        mlApi.createTestUser().then((testUser) => {
+          if (!testUser) return onErr('Failed creating test user.')
+          sessionApi.addTestUser(testUser);
+        })
       }
     })
 
@@ -91,7 +96,7 @@ let repl = {
       help: "Gets account personal info, acts as a access benchmark",
       action() {
         if (!sessionApi.hasAccessToken()) return onErr('Missing or Invalid Access Token.');
-        mlApi.getMe().then(data => { console.log(JSON.stringify(data, null, 2)) });
+        mlApi.getMe().then(log);
       }
     })
 
@@ -102,9 +107,23 @@ let repl = {
     return repl;
   }
 }
+
 function setPromptProfile(repl, profile) {
   repl.setPrompt(`${profile}@${DEFAULT_PROMPT}`);
   repl.displayPrompt();
+}
+
+/** 
+ * Auxiliary
+ */
+
+ function onErr(e) {
+   console.log(e, true, false);
+   return undefined;
+}
+
+function log(data) {
+    console.log(JSON.stringify(data, null, 2), true, false);
 }
 
 module.exports = repl;
