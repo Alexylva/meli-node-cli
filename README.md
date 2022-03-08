@@ -15,3 +15,7 @@ Then, pull and
 ```npm install```
 
 ```node .\app.js```
+
+In order to use it you need to set-up a APP at https://developers.mercadolivre.com.br/ and grab it's APP_ID and secret key. 
+
+(They will be stored at your computer and won't be shared with anyone)
