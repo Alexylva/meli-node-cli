@@ -76,11 +76,10 @@ module.exports = {
  */
 
 async function _changeSkuVari(mlb, vari, sku) {
-  console.log(`Changing SKU for ${mlb}${vari} to ${sku}`);
+  console.log(`Changing SKU for ${mlb}/${vari} to ${sku}`);
 
   const item = await getItemVari(mlb,vari);
   if (isError(item)) return onErr(item.message);
-  console.log(JSON.stringify(item,null,2));
 
   item.attributes.push({
     id: "SELLER_SKU",
@@ -92,8 +91,12 @@ async function _changeSkuVari(mlb, vari, sku) {
     attributes: item.attributes
   });
   const data = await response;
-
-  if (data.warnings) console.log(`Server Answer: ${JSON.stringify(data, null, 2)}`, true);
+ 
+  if (data.warnings) 
+    console.log(`Server Answer: ${JSON.stringify(data, null, 2)}`, true);
+  else
+    console.log(`${mlb}/${vari} SKU is now ${sku}`)
+    
 }
 
 async function _changeSkuReg(mlb, sku) {
