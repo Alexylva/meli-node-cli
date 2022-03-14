@@ -81,6 +81,10 @@ async function _changeSkuVari(mlb, vari, sku) {
   const item = await getItemVari(mlb,vari);
   if (isError(item)) return onErr(item.message);
 
+  createBackup(item);
+
+  if (!Array.isArray(item.attributes)) item.attributes = [];
+
   item.attributes.push({
     id: "SELLER_SKU",
     value_name: sku
@@ -90,13 +94,20 @@ async function _changeSkuVari(mlb, vari, sku) {
     id: vari,
     attributes: item.attributes
   });
-  const data = await response;
- 
-  if (data.warnings) 
-    console.log(`Server Answer: ${JSON.stringify(data, null, 2)}`, true);
-  else
-    console.log(`${mlb}/${vari} SKU is now ${sku}`)
-    
+  let data = await response;
+  data = data[0];
+
+  if (data.warnings) {
+    console.log(`Server Answer: ${JSON.stringify(data, null, 2)}`, false);
+  } else {
+    if (!Array.isArray(data.attributes)) return onErr("Unknown Return Data\n" + JSON.stringify(data,null,2));
+    let i = data.attributes.findIndex(elem => elem.id && elem.id === 'SELLER_SKU');
+    if (data.attributes[i].value_name && data.attributes[i].value_name === sku) {
+      console.log(`${mlb}/${vari} SKU is now ${sku}`, false, false);
+    } else {
+      return onErr("SKU wasn't set correctly\n" + JSON.stringify(data,null,2));
+    }  
+  }  
 }
 
 async function _changeSkuReg(mlb, sku) {
@@ -151,4 +162,17 @@ function isError(response) {
 function onErr(e) {
   console.log(e, true, false);
   return undefined;
+}
+
+/**
+ * Backup Functions
+ */
+//TODO
+let fs, path;
+function createBackup(item, ...tags) {
+  fs = fs ||require('fs');
+  path = path || require('path');
+
+  fs.writeFile(path.join(BACKUP_PATH, `${tags.join('-')} ${item.id} ` , )
+
 }
