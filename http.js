@@ -26,10 +26,8 @@ function setup(accessTokenFetcher, sessionApi, appKeysGetter) {
       if (!auth) return onErr("Failed retrieving Auth Code", auth);
       console.log(`Auth Code: ${auth} for slot "${sessionApi.getProfile()}"`, true);
       sessionApi.setAuth(auth);
-      res.send("<script>window.close()</script>");
-
+      res.end("<script>window.location = 'https://www.mercadolivre.com.br/'</script>");
       let response = fetchAccessToken(auth, redirect_uri).then((response)=>{;
-        console.log(response);
         console.log(`Access Token: ${response.access_token}`, true);
         sessionApi.setAccessToken(response.access_token, response)
       });
