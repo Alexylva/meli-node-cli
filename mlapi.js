@@ -81,7 +81,9 @@ async function _changeSkuVari(mlb, vari, sku) {
   const item = await getItemVari(mlb,vari);
   if (isError(item)) return onErr(item.message);
 
-  createBackup(item);
+  //.changeSku MLB1940036885 90170897681 ESCO431003
+  createBackup(mlb, item, "vari" , sku); //What?
+  //[object Object] (MLB1940036885-ESCO431003 @ 1647466756436).json' wut
 
   if (!Array.isArray(item.attributes)) item.attributes = [];
 
@@ -171,7 +173,7 @@ function onErr(e) {
 let fs, path;
 const BACKUP_PATH = "./.backups/";
 
-function createBackup(item, ...tags) { // ❕ perhaps make async?
+function createBackup(mlb, item, ...tags) { // ❕ perhaps make async?
   fs = fs || require('fs');
   path = path || require('path');
 
@@ -179,11 +181,11 @@ function createBackup(item, ...tags) { // ❕ perhaps make async?
     fs.mkdirSync(path.dirname(BACKUP_PATH), { recursive: true });
   }
 
-  let backup_file = path.join(BACKUP_PATH, `${item.id} (${tags.join('-')} @ ${((new Date).valueOf())}).json`);
+  let backup_file = path.join(BACKUP_PATH, `${mlb} (${tags.join('-')} @ ${((new Date).valueOf())}).json`);
   // -> ./backups/90170897681 (vari-tairashop @ 1647448169214).json
   
   try {
-    fs.writeFileSync(path.resolve(backup_file),  JSON.stringify(data, null, 2));
+    fs.writeFileSync(path.resolve(backup_file),  JSON.stringify(item, null, 2));
   } catch (err) {
     console.error(err);
   }
