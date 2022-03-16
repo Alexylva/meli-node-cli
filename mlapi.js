@@ -167,12 +167,25 @@ function onErr(e) {
 /**
  * Backup Functions
  */
-//TODO
+
 let fs, path;
-function createBackup(item, ...tags) {
-  fs = fs ||require('fs');
+const BACKUP_PATH = "./.backups/";
+
+function createBackup(item, ...tags) { // ❕ perhaps make async?
+  fs = fs || require('fs');
   path = path || require('path');
 
-  fs.writeFile(path.join(BACKUP_PATH, `${tags.join('-')} ${item.id} ` , )
+  if (!fs.existsSync(path.dirname(BACKUP_PATH))) {
+    fs.mkdirSync(path.dirname(BACKUP_PATH), { recursive: true });
+  }
+
+  let backup_file = path.join(BACKUP_PATH, `${item.id} (${tags.join('-')} @ ${((new Date).valueOf())}).json`);
+  // -> ./backups/90170897681 (vari-tairashop @ 1647448169214).json
+  
+  try {
+    fs.writeFileSync(path.resolve(backup_file),  JSON.stringify(data, null, 2));
+  } catch (err) {
+    console.error(err);
+  }
 
 }
