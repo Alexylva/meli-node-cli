@@ -2,10 +2,17 @@
  * API Implementation
 **/
 let fetch = require('node-fetch');
-//fetch = (...a) => { console.log(JSON.stringify(a)); return { json() {return {}; }} };
+const fs = require('fs');
+const path = require('path');
+const { cursorTo } = require('readline');
 
+/**
+ * Constants
+ */
 let setAccessToken, getAccessToken, getAppKeys;
 const API_URL = 'https://api.mercadolibre.com/';
+const API_INTERVAL = 700;//ms
+const BACKUP_PATH = "./.backups/"; // ❕ Later move to constants file?
 
 function setup(accessTokenGetter, accessTokenSetter, appKeysGetter) {
   return new Promise (resolve => {
@@ -15,6 +22,13 @@ function setup(accessTokenGetter, accessTokenSetter, appKeysGetter) {
   })
 }
 
+/**
+ * Used to send a request to ML API for a Access Token, that gives access to most functions.
+ * 
+ * @param {string} auth Auth token used to generate Access Token
+ * @param {string} redirect_uri URI for where the server will send the Access Token.
+ * @returns Promise for the token data.
+ */
 function fetchAccessToken(auth, redirect_uri) {
   const appkeys = getAppKeys();
   return request('oauth/token', 'POST', 
@@ -28,6 +42,11 @@ function fetchAccessToken(auth, redirect_uri) {
   );
 }
 
+/**
+ * Implements the users/me API function, which returns current user data.
+ * 
+ * @returns Promise for the users/me response.
+ */
 function getMe() {
   return request('users/me');;
 }
@@ -35,6 +54,7 @@ function getMe() {
 function getItem(mlb) {
   return request(`items/${mlb}`);
 }
+
 function getItemVari(mlb, vari) {
   return request(`items/${mlb}/variations/${vari}`);
 }
