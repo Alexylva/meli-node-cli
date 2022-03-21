@@ -143,6 +143,7 @@ const path = require('path');
 const fs = require('fs');
 
 function storeData(data, session_file) {
+  session_file = path.resolve(session_file); //Make absolute path
   if (!fs.existsSync(path.dirname(session_file))) {
     fs.mkdirSync(path.dirname(session_file), { recursive: true });
   }
