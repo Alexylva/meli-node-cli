@@ -161,8 +161,8 @@ function isError(response) {
   return (typeof response.error !== 'undefined' || (typeof response.status !== 'undefined' && response.status >= 300));
 }
 
-function onErr(e) {
-  console.log(e, true, false);
+function onErr(...e) {
+  console.log(e.join("\n"), true, false);
   return undefined;
 }
 
