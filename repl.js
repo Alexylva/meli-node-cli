@@ -77,6 +77,17 @@ let repl = {
       }
     });
 
+    r.defineCommand('batchChangeSku', {
+      help: "Takes a csv file as parameter (columns being MLB, Vari (null for non-variation MLBs), SKU) and updates all skus.",
+      action(filename) {
+        r.pause()
+        mlApi.batchChangeSku(filename).then(
+          r.resume()
+        );
+      }
+    
+    })
+
     r.defineCommand('createTestUser', {
       help: 'Creates a testing purpose user.',
       action() {
