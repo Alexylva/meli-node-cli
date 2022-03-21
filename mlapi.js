@@ -94,6 +94,7 @@ module.exports = {
   setup,
   fetchAccessToken,
   changeSku,
+  batchChangeSku,
   getMe,
   getItem,
   getItemVari,
