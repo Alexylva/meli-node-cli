@@ -105,16 +105,27 @@ module.exports = {
  */
 
 async function _changeSkuVari(mlb, vari, sku) {
-  console.log(`Changing SKU for ${mlb}/${vari} to ${sku}`);
 
   const item = await getItemVari(mlb,vari);
   if (isError(item)) return onErr(item.message);
 
-  //.changeSku MLB1940036885 90170897681 ESCO431003
-  createBackup(mlb, item, "vari" , sku); //What?
-  //[object Object] (MLB1940036885-ESCO431003 @ 1647466756436).json' wut
-
   if (!Array.isArray(item.attributes)) item.attributes = [];
+  let currsku, oldlen = item.attributes.length;
+  try {
+    currsku = item.attributes[item.attributes.findIndex(elem => elem.id && elem.id === 'SELLER_SKU')].value_name;
+  } catch (e) {
+    currsku = "null";
+  }
+
+  if (currsku === sku) {
+    createBackup(mlb, item, 'vari', vari, 'sku', currsku, 'unchanged');
+    console.log(`SKU for ${mlb}/${vari} is already ${sku}`, false, false);
+    return;
+  } else {
+    createBackup(mlb, item, 'vari', vari, 'sku', currsku, 'to', sku);
+  }
+
+  console.log(`Changing SKU for ${mlb}/${vari} to ${sku}`, false);
 
   item.attributes.push({
     id: "SELLER_SKU",
@@ -126,17 +137,24 @@ async function _changeSkuVari(mlb, vari, sku) {
     attributes: item.attributes
   });
   let data = await response;
-  data = data[0];
-
+  if (!data || !Array.isArray(data)) return onErr("Unknown response data.")
+  data = data[data.findIndex(elem => elem.id && elem.id.toString() === vari)];
+  if (!data) return onErr("Failed to find variation in response!")
   if (data.warnings) {
     console.log(`Server Answer: ${JSON.stringify(data, null, 2)}`, false);
   } else {
-    if (!Array.isArray(data.attributes)) return onErr("Unknown Return Data\n" + JSON.stringify(data,null,2));
+    if (!Array.isArray(data.attributes)) 
+      return onErr("Unknown Return Data\n" + JSON.stringify(data,null,2));
+    
     let i = data.attributes.findIndex(elem => elem.id && elem.id === 'SELLER_SKU');
+    let newlen = data.attributes.length;
+
     if (data.attributes[i].value_name && data.attributes[i].value_name === sku) {
       console.log(`${mlb}/${vari} SKU is now ${sku}`, false, false);
+      createBackup(mlb, data, 'vari', vari, 'sku', currsku, 'to', sku, 'new', oldlen, newlen);
     } else {
-      return onErr("SKU wasn't set correctly\n" + JSON.stringify(data,null,2));
+      createBackup(mlb, data, 'vari', vari, 'sku', currsku, 'to', sku, 'fail');
+      return onErr("SKU wasn't set correctly\n" + JSON.stringify(data,null,2), false);
     }  
   }  
 }
