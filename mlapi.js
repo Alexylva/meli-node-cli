@@ -170,18 +170,18 @@ function onErr(e) {
  * Backup Functions
  */
 
-let fs, path;
-const BACKUP_PATH = "./.backups/";
-
 function createBackup(mlb, item, ...tags) { // ❕ perhaps make async?
-  fs = fs || require('fs');
-  path = path || require('path');
+  let backup_path = path.resolve(BACKUP_PATH); //Make absolute path
 
-  if (!fs.existsSync(path.dirname(BACKUP_PATH))) {
-    fs.mkdirSync(path.dirname(BACKUP_PATH), { recursive: true });
+  if (!fs.existsSync(backup_path)) {
+    try {
+    fs.mkdirSync(backup_path, { recursive: true });
+    } catch (e) {
+      return onErr("Error creating backups folder", e);
+    }
   }
 
-  let backup_file = path.join(BACKUP_PATH, `${mlb} (${tags.join('-')} @ ${((new Date).valueOf())}).json`);
+  let backup_file = path.join(backup_path, `${mlb} (${tags.join('-')} @ ${((new Date).valueOf())}).json`);
   // -> ./backups/90170897681 (vari-tairashop @ 1647448169214).json
   
   try {
