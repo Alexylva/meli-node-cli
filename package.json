@@ -18,6 +18,7 @@
   "dependencies": {
     "dotenv": "^16.0.0",
     "express": "^4.17.3",
+    "jquery-csv": "^1.0.21",
     "node-fetch": "^2.6.7",
     "repl": "^0.1.3"
   }
