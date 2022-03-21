@@ -52,6 +52,35 @@ function changeSku(mlb, vari, sku, verbose = false) {
   }
 }
 
+function batchChangeSku(file) {
+  return new Promise((resolve) => {
+    let csv = require('jquery-csv');
+    let fileContent;
+
+    try {
+      fileContent = fs.readFileSync(path.resolve(file), 'UTF-8');
+    } catch(e) { 
+      return onErr("File not found", e);
+    }
+
+    let data = csv.toArrays(fileContent, {}, async (err, array) => { //Makes CSV into array
+      if (err) return onErr("Error converting to CSV", e);
+
+      for (let i = 1; i < array.length; i++) { //Loops through the array
+        [mlb, vari, sku] = array[i];
+        await new Promise((resolve) => { //Executes in set time interval synchronously to not overload the API.
+          setTimeout(() => {
+            console.log(`batch: [${i}/${array.length}] ${array[i]}`,false,false);
+            changeSku(mlb, vari, sku);
+            resolve();
+          }, API_INTERVAL);
+        })
+      }
+      resolve();
+    });
+  })
+}
+
 function createTestUser() {
   const response = request('users/test_user', 'POST', {"site_id":"MLB"});
   if (!isError(response)) {
