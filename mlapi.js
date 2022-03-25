@@ -137,12 +137,14 @@ async function _changeSkuVari(mlb, vari, sku) {
   let currentSku = getSkuFromItem(item);
 
   //Check if it is necessary to replace the SKU, create backups
-  if (currentSku === sku) {
-    createBackup(mlb, item, 'vari', vari, 'sku', currentSku, 'unchanged');
-    console.log(`SKU for ${mlb}/${vari} is already ${sku}`, false, false);
-    return;
-  } else {
-    createBackup(mlb, item, 'vari', vari, 'sku', currentSku, 'to', sku);
+  let tag = 'ok';
+  try {
+    if (currentSku === sku) {
+      tag = 'unchanged';
+      throw onErr(`SKU for ${mlb}/${vari} is already ${sku}`, false, false)
+    }
+  } finally {
+    createBackup(mlb, item, 'vari', vari, 'sku', currentSku, 'to', sku, tag);
   }
 
   //Changing SKU required, sends request to change
