@@ -178,6 +178,14 @@ async function _changeSkuVari(mlb, vari, sku) {
       return onErr("SKU wasn't set correctly\n" + JSON.stringify(data,null,2), false);
     }  
   }  
+function getSkuFromItem(item) {
+  let currsku;
+  try {
+    currsku = item.attributes[item.attributes.findIndex(elem => elem.id && elem.id === 'SELLER_SKU')].value_name;
+  } catch (e) {
+    currsku = "null";
+  }
+  return currsku;
 }
 
 async function _changeSkuReg(mlb, sku) {
