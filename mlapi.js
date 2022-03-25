@@ -133,21 +133,32 @@ async function _changeSkuVari(mlb, vari, sku) {
   
   //Get current attributes, their length and SKU
   if (!Array.isArray(item.attributes)) item.attributes = [];
-  let currsku, oldlen = item.attributes.length;
+  let oldLength = item.attributes.length;
+  let currentSku = getSkuFromItem(item);
 
+  //Check if it is necessary to replace the SKU, create backups
+  if (currentSku === sku) {
     createBackup(mlb, item, 'vari', vari, 'sku', currentSku, 'unchanged');
     console.log(`SKU for ${mlb}/${vari} is already ${sku}`, false, false);
     return;
   } else {
+    createBackup(mlb, item, 'vari', vari, 'sku', currentSku, 'to', sku);
   }
 
+  //Changing SKU required, sends request to change
+  return _changeSkuVariRequest(mlb, vari, sku);
+}
+
+async function _changeSkuVariRequest(mlb, vari, sku) {
   console.log(`Changing SKU for ${mlb}/${vari} to ${sku}`, false);
 
+  //Push the sku into the item attributes.
   item.attributes.push({
     id: "SELLER_SKU",
     value_name: sku
   })
 
+  //Perform the request
   const response = request(`items/${mlb}/variations/${vari}`, 'PUT', {
     id: vari,
     attributes: item.attributes
@@ -244,7 +255,7 @@ function isError(response) {
 
 function onErr(...e) {
   console.log(e.join("\n"), true, false);
-  return undefined;
+  return FAILURE;
 }
 
 /**
