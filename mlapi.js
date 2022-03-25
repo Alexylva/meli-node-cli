@@ -62,7 +62,13 @@ function getItemVari(mlb, vari) {
 
 
 
-// .changeSku MLB2181674098 174214094869 SUCCESSSKU
+/**
+ * Wrapper function that automatically chooses between using the regular or variation
+ * of the SKU changing function.
+ * @param {string} mlb Item's MLB
+ * @param {string} vari Item's Variation ID, as string
+ * @param {string} sku SKU that will be assigned to the item.
+ */
 function changeSku(mlb, vari, sku, verbose = false) {
   if (!isMLBValid(mlb)) throw new Error("Invalid MLB");
 
@@ -73,6 +79,11 @@ function changeSku(mlb, vari, sku, verbose = false) {
   }
 }
 
+/**
+ * Reads a CSV and feeds it into the changeSku function.
+ * @param {string} file Path to a file
+ * @returns 
+ */
 function batchChangeSku(file) {
   return new Promise((resolve) => {
     let csv = require('jquery-csv');
@@ -97,7 +108,7 @@ function batchChangeSku(file) {
           }, API_INTERVAL);
         })
       }
-      resolve();
+      resolve(SUCCESS);
     });
   })
 }
@@ -126,6 +137,14 @@ module.exports = {
  * Auxiliary API Functions
  */
 
+/**
+ * Changes SKU for a variation.
+ * 
+ * @param {string} mlb Item's MLB
+ * @param {string} vari Item's Variation ID, as string
+ * @param {string} sku SKU that will be assigned to the item.
+ * @returns 
+ */
 async function _changeSkuVari(mlb, vari, sku) {
   //Get original item
   const item = await getItemVari(mlb,vari);
@@ -151,6 +170,15 @@ async function _changeSkuVari(mlb, vari, sku) {
   return _changeSkuVariRequest(mlb, vari, sku, item);
 }
 
+
+/**
+ * Auxiliary function that performs a request to change a item's SKU.
+ * @param {string} mlb Item's MLB
+ * @param {string} vari Item's Variation ID, as string
+ * @param {string} sku SKU that will be assigned to the item.
+ * @param {MLVariationItemResponse} item Object returned by getItemVari.
+ * @returns 
+ */
 async function _changeSkuVariRequest(mlb, vari, sku, item) {
   console.log(`Changing SKU for ${mlb}/${vari} to ${sku}`, false);
 
@@ -174,6 +202,16 @@ async function _changeSkuReg(mlb, sku) {
   throw new Error("Not implemented!");
 }
 
+
+
+/**
+ * Auxiliary function to perform checks on the API response object and backups.
+ * @param {string} mlb Item's MLB
+ * @param {string} vari Item's Variation ID, as string
+ * @param {string} sku SKU that will be assigned to the item.
+ * @param {MLSkuAlterationResponse} apiResponse Object returned by _changeSkuVariRequest
+ * @returns 
+ */
 function _handleVariResponse(mlb, vari, sku, apiResponse) {
   let newLength, newsku, tag;
   try {
