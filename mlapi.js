@@ -129,7 +129,7 @@ module.exports = {
 async function _changeSkuVari(mlb, vari, sku) {
   //Get original item
   const item = await getItemVari(mlb,vari);
-  if (isError(item)) return onErr(item.message);
+  if (isError(item)) return onErr('Unknown item error', item.message);
   
   //Get current attributes, their length and SKU
   if (!Array.isArray(item.attributes)) item.attributes = [];
@@ -148,10 +148,10 @@ async function _changeSkuVari(mlb, vari, sku) {
   }
 
   //Changing SKU required, sends request to change
-  return _changeSkuVariRequest(mlb, vari, sku);
+  return _changeSkuVariRequest(mlb, vari, sku, item);
 }
 
-async function _changeSkuVariRequest(mlb, vari, sku) {
+async function _changeSkuVariRequest(mlb, vari, sku, item) {
   console.log(`Changing SKU for ${mlb}/${vari} to ${sku}`, false);
 
   //Push the sku into the item attributes.
