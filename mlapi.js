@@ -165,35 +165,46 @@ async function _changeSkuVariRequest(mlb, vari, sku) {
     id: vari,
     attributes: item.attributes
   });
-  let data = await response;
-
-  return _handleVariResponse(mlb, vari, sku, data);
+  let apiResponse = await response;
+  
+  return _handleVariResponse(mlb, vari, sku, apiResponse);
 }
 
-function _handleVariResponse(mlb, vari, sku, data) {
+async function _changeSkuReg(mlb, sku) {
+  throw new Error("Not implemented!");
+}
+
+function _handleVariResponse(mlb, vari, sku, apiResponse) {
+  let newLength, newsku, tag;
   try {
     //Sanity check the response
-    if (!data || !Array.isArray(data) || !Array.isArray(data.attributes)) 
-      throw [onErr("Invalid response data.", JSON.stringify(data,null,2)), 'fail-sanity'];
+    if (!apiResponse || !Array.isArray(apiResponse) || !Array.isArray(apiResponse.attributes)) 
+      throw [onErr("Invalid response data.", JSON.stringify(apiResponse,null,2)), tag = 'fail-sanity'];
     
-      //Server answers with a array of all variations, choose the one with our ID to parse.
-    data = data[data.findIndex(elem => elem.id && elem.id.toString() === vari)];
-    if (!data)
-      throw [onErr("Failed to find variation in response!"), data, 'fail-nosuchvari'];
+    //Server answers with a array of all variations, choose the one with our ID to parse.
+    apiResponse = apiResponse[apiResponse.findIndex(elem => elem.id && elem.id.toString() === vari)];
+    if (!apiResponse)
+      throw [onErr("Failed to find variation in response!"), apiResponse, tag = 'fail-nosuchvari'];
     
-    if (data.warnings) 
-        throw  [onErr(`Warnings: ${JSON.stringify(data, null, 2)}`, false), 'warnings'];
+    //Server answered with some warnings, but mostly successfully (probably?)
+    if (apiResponse.warnings) 
+      throw  [onErr(`Warnings: ${JSON.stringify(apiResponse, null, 2)}`, false), tag = 'warnings'];
     
-    let newlen = data.attributes.length;
-    let newsku = getSkuFromItem(data);
-    if (newsku !== sku) {
-      throw [onErr("SKU wasn't set correctly\n" + JSON.stringify(data,null,2), false), 'fail-skunotset'];
-    } else {
-      console.log(`${mlb}/${vari} SKU is now ${sku}`, false, false);
-      createBackup(mlb, data, 'vari', vari, 'sku', currentSku, 'to', sku, 'new', oldLength, newlen);
-    }  
+    //Get some data of the answer
+    newLength = apiResponse.attributes.length;
+    newsku = getSkuFromItem(apiResponse);
+    if (newsku !== sku)
+      throw [onErr("SKU wasn't set correctly\n" + JSON.stringify(apiResponse,null,2), false), tag = 'fail-skunotset'];
+
+    //All good
+    console.log(`${mlb}/${vari} SKU is now ${sku}`, false, false);
+    tag = `new-${oldLength}-${newLength}`;
+
+  } finally {
+    //Backup the data no matter what
+    createBackup(mlb, apiResponse, 'vari', vari, 'sku', currentSku, 'to', sku, tag);
   }
-  }}
+  return SUCCESS;
 }
 
 function getSkuFromItem(item) {
@@ -205,11 +216,6 @@ function getSkuFromItem(item) {
   }
   return currsku;
 }
-
-async function _changeSkuReg(mlb, sku) {
-  throw new Error("Not implemented!");
-}
-
 
 /**
  * Request Shorthands
