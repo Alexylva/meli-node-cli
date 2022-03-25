@@ -5,6 +5,7 @@ let fetch = require('node-fetch');
 const fs = require('fs');
 const path = require('path');
 const { cursorTo } = require('readline');
+const [SUCCESS, FAILURE] = [ Symbol("Success"), Symbol("Failure") ];
 
 /**
  * Constants
@@ -126,24 +127,18 @@ module.exports = {
  */
 
 async function _changeSkuVari(mlb, vari, sku) {
-
+  //Get original item
   const item = await getItemVari(mlb,vari);
   if (isError(item)) return onErr(item.message);
-
+  
+  //Get current attributes, their length and SKU
   if (!Array.isArray(item.attributes)) item.attributes = [];
   let currsku, oldlen = item.attributes.length;
-  try {
-    currsku = item.attributes[item.attributes.findIndex(elem => elem.id && elem.id === 'SELLER_SKU')].value_name;
-  } catch (e) {
-    currsku = "null";
-  }
 
-  if (currsku === sku) {
-    createBackup(mlb, item, 'vari', vari, 'sku', currsku, 'unchanged');
+    createBackup(mlb, item, 'vari', vari, 'sku', currentSku, 'unchanged');
     console.log(`SKU for ${mlb}/${vari} is already ${sku}`, false, false);
     return;
   } else {
-    createBackup(mlb, item, 'vari', vari, 'sku', currsku, 'to', sku);
   }
 
   console.log(`Changing SKU for ${mlb}/${vari} to ${sku}`, false);
@@ -158,26 +153,36 @@ async function _changeSkuVari(mlb, vari, sku) {
     attributes: item.attributes
   });
   let data = await response;
-  if (!data || !Array.isArray(data)) return onErr("Unknown response data.")
-  data = data[data.findIndex(elem => elem.id && elem.id.toString() === vari)];
-  if (!data) return onErr("Failed to find variation in response!")
-  if (data.warnings) {
-    console.log(`Server Answer: ${JSON.stringify(data, null, 2)}`, false);
-  } else {
-    if (!Array.isArray(data.attributes)) 
-      return onErr("Unknown Return Data\n" + JSON.stringify(data,null,2));
-    
-    let i = data.attributes.findIndex(elem => elem.id && elem.id === 'SELLER_SKU');
-    let newlen = data.attributes.length;
 
-    if (data.attributes[i].value_name && data.attributes[i].value_name === sku) {
-      console.log(`${mlb}/${vari} SKU is now ${sku}`, false, false);
-      createBackup(mlb, data, 'vari', vari, 'sku', currsku, 'to', sku, 'new', oldlen, newlen);
+  return _handleVariResponse(mlb, vari, sku, data);
+}
+
+function _handleVariResponse(mlb, vari, sku, data) {
+  try {
+    //Sanity check the response
+    if (!data || !Array.isArray(data) || !Array.isArray(data.attributes)) 
+      throw [onErr("Invalid response data.", JSON.stringify(data,null,2)), 'fail-sanity'];
+    
+      //Server answers with a array of all variations, choose the one with our ID to parse.
+    data = data[data.findIndex(elem => elem.id && elem.id.toString() === vari)];
+    if (!data)
+      throw [onErr("Failed to find variation in response!"), data, 'fail-nosuchvari'];
+    
+    if (data.warnings) 
+        throw  [onErr(`Warnings: ${JSON.stringify(data, null, 2)}`, false), 'warnings'];
+    
+    let newlen = data.attributes.length;
+    let newsku = getSkuFromItem(data);
+    if (newsku !== sku) {
+      throw [onErr("SKU wasn't set correctly\n" + JSON.stringify(data,null,2), false), 'fail-skunotset'];
     } else {
-      createBackup(mlb, data, 'vari', vari, 'sku', currsku, 'to', sku, 'fail');
-      return onErr("SKU wasn't set correctly\n" + JSON.stringify(data,null,2), false);
+      console.log(`${mlb}/${vari} SKU is now ${sku}`, false, false);
+      createBackup(mlb, data, 'vari', vari, 'sku', currentSku, 'to', sku, 'new', oldLength, newlen);
     }  
-  }  
+  }
+  }}
+}
+
 function getSkuFromItem(item) {
   let currsku;
   try {
