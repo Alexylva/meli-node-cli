@@ -5,7 +5,7 @@ let fetch = require('node-fetch');
 const fs = require('fs');
 const path = require('path');
 const { cursorTo } = require('readline');
-const [SUCCESS, FAILURE] = [ Symbol("Success"), Symbol("Failure") ];
+const [SUCCESS, FAILURE] = [Symbol("Success"), Symbol("Failure")];
 
 /**
  * Constants
@@ -16,9 +16,9 @@ const API_INTERVAL = 700;//ms
 const BACKUP_PATH = "./.backups/"; // ❕ Later move to constants file?
 
 function setup(accessTokenGetter, accessTokenSetter, appKeysGetter) {
-  return new Promise (resolve => {
-    [ getAccessToken , setAccessToken , getAppKeys ] = 
-    [ accessTokenGetter, accessTokenSetter, appKeysGetter ];
+  return new Promise(resolve => {
+    [getAccessToken, setAccessToken, getAppKeys] =
+      [accessTokenGetter, accessTokenSetter, appKeysGetter];
     resolve();
   })
 }
@@ -32,14 +32,15 @@ function setup(accessTokenGetter, accessTokenSetter, appKeysGetter) {
  */
 function fetchAccessToken(auth, redirect_uri) {
   const appkeys = getAppKeys();
-  return request('oauth/token', 'POST', 
+  return request('oauth/token', 'POST',
     `grant_type=authorization_code
      &client_id=${appkeys.app_id}
      &client_secret=${appkeys.secret}
      &code=${auth}
      &redirect_uri=${redirect_uri}`, {
-    'accept': 'application/json',
-    'content-type': 'application/x-www-form-urlencoded'},
+      'accept': 'application/json',
+      'content-type': 'application/x-www-form-urlencoded'
+    },
   );
 }
 
@@ -91,7 +92,7 @@ function batchChangeSku(file) {
 
     try {
       fileContent = fs.readFileSync(path.resolve(file), 'UTF-8');
-    } catch(e) { 
+    } catch (e) {
       return onErr("File not found", e);
     }
 
@@ -102,7 +103,7 @@ function batchChangeSku(file) {
         [mlb, vari, sku] = array[i];
         await new Promise((resolve) => { //Executes in set time interval synchronously to not overload the API.
           setTimeout(() => {
-            console.log(`batch: [${i}/${array.length}] ${array[i]}`,false,false);
+            console.log(`batch: [${i}/${array.length}] ${array[i]}`, false, false);
             changeSku(mlb, vari, sku);
             resolve();
           }, API_INTERVAL);
@@ -114,7 +115,7 @@ function batchChangeSku(file) {
 }
 
 function createTestUser() {
-  const response = request('users/test_user', 'POST', {"site_id":"MLB"});
+  const response = request('users/test_user', 'POST', { "site_id": "MLB" });
   if (!isError(response)) {
     return response;
   } else {
@@ -149,7 +150,7 @@ async function _changeSkuVari(mlb, vari, sku) {
   //Get original item
   const item = await getItemVari(mlb,vari);
   if (isError(item)) return onErr('Unknown item error', item.message);
-  
+
   //Get current attributes, their length and SKU
   if (!Array.isArray(item.attributes)) item.attributes = [];
   let oldLength = item.attributes.length;
@@ -188,6 +189,7 @@ async function _changeSkuVariRequest(mlb, vari, sku, item) {
     value_name: sku
   })
 
+
   //Perform the request
   const response = request(`items/${mlb}/variations/${vari}`, 'PUT', {
     id: vari,
@@ -201,7 +203,6 @@ async function _changeSkuVariRequest(mlb, vari, sku, item) {
 async function _changeSkuReg(mlb, sku) {
   throw new Error("Not implemented!");
 }
-
 
 
 /**
@@ -224,10 +225,12 @@ function _handleVariResponse(mlb, vari, sku, apiResponse) {
     if (!apiResponse)
       throw [onErr("Failed to find variation in response!"), apiResponse, tag = 'fail-nosuchvari'];
     
+
     //Server answered with some warnings, but mostly successfully (probably?)
     if (apiResponse.warnings) 
       throw  [onErr(`Warnings: ${JSON.stringify(apiResponse, null, 2)}`, false), tag = 'warnings'];
     
+
     //Get some data of the answer
     newLength = apiResponse.attributes.length;
     newsku = getSkuFromItem(apiResponse);
@@ -245,6 +248,7 @@ function _handleVariResponse(mlb, vari, sku, apiResponse) {
   return SUCCESS;
 }
 
+
 function getSkuFromItem(item) {
   let currsku;
   try {
@@ -254,6 +258,7 @@ function getSkuFromItem(item) {
   }
   return currsku;
 }
+
 
 /**
  * Request Shorthands
@@ -279,15 +284,15 @@ function makeHeaders() {
   return {
     'Authorization': `Bearer ${access_token}`,
     'Content-Type': 'application/json'
-    }
   }
+}
 
 
 /**
  * Validity Functions
  */
 
-function isVariValid(vari){
+function isVariValid(vari) {
   return /^\d{7,12}$/.test(vari);
 }
 
@@ -313,7 +318,7 @@ function createBackup(mlb, item, ...tags) { // ❕ perhaps make async?
 
   if (!fs.existsSync(backup_path)) {
     try {
-    fs.mkdirSync(backup_path, { recursive: true });
+      fs.mkdirSync(backup_path, { recursive: true });
     } catch (e) {
       return onErr("Error creating backups folder", e);
     }
@@ -321,9 +326,9 @@ function createBackup(mlb, item, ...tags) { // ❕ perhaps make async?
 
   let backup_file = path.join(backup_path, `${mlb} (${tags.join('-')} @ ${((new Date).valueOf())}).json`);
   // -> ./backups/90170897681 (vari-tairashop @ 1647448169214).json
-  
+
   try {
-    fs.writeFileSync(path.resolve(backup_file),  JSON.stringify(item, null, 2));
+    fs.writeFileSync(path.resolve(backup_file), JSON.stringify(item, null, 2));
   } catch (err) {
     console.error(err);
   }
