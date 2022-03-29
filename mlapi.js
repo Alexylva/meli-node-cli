@@ -259,6 +259,11 @@ function getSkuFromItem(item) {
   return currsku;
 }
 
+function getNotation(mlb,vari) {
+  if (vari)
+    return `${mlb}/${vari}`
+  return `${mlb}`;
+}
 
 /**
  * Request Shorthands
