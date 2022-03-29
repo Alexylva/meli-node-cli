@@ -148,12 +148,11 @@ module.exports = {
  */
 async function _changeSkuVari(mlb, vari, sku) {
   //Get original item
-  const item = await getItemVari(mlb,vari);
+  const item = await ((vari) ? getItemVari(mlb, vari) : getItem(mlb));
   if (isError(item)) return onErr('Unknown item error', item.message);
 
   //Get current attributes, their length and SKU
   if (!Array.isArray(item.attributes)) item.attributes = [];
-  let oldLength = item.attributes.length;
   let currentSku = getSkuFromItem(item);
 
   //Check if it is necessary to replace the SKU, create backups
@@ -161,10 +160,10 @@ async function _changeSkuVari(mlb, vari, sku) {
   try {
     if (currentSku === sku) {
       tag = 'unchanged';
-      throw onErr(`SKU for ${mlb}/${vari} is already ${sku}`, false, false)
+      throw onErr(`SKU for ${getNotation(mlb,vari)} is already ${sku}`, false, false)
     }
   } finally {
-    createBackup(mlb, item, 'vari', vari, 'sku', currentSku, 'to', sku, tag);
+    createBackup(mlb, item, ...(vari ? ['vari', vari]:[]), 'sku', currentSku, 'to', sku, tag);
   }
 
   //Changing SKU required, sends request to change
@@ -173,15 +172,18 @@ async function _changeSkuVari(mlb, vari, sku) {
 
 
 /**
- * Auxiliary function that performs a request to change a item's SKU.
+ * Auxiliary function that performs a request to change a variation item's SKU.
  * @param {string} mlb Item's MLB
  * @param {string} vari Item's Variation ID, as string
  * @param {string} sku SKU that will be assigned to the item.
+ * @param {MLItemResponse} item Object returned by getItemVari.
  * @param {MLVariationItemResponse} item Object returned by getItemVari.
  * @returns 
  */
-async function _changeSkuVariRequest(mlb, vari, sku, item) {
-  console.log(`Changing SKU for ${mlb}/${vari} to ${sku}`, false);
+async function _changeSkuRequest(mlb, vari, sku, item) {
+  console.log(`Changing SKU for ${getNotation(mlb,vari)} to ${sku}`, false);
+
+  let id = (vari) ? vari : mlb;
 
   //Push the sku into the item attributes.
   item.attributes.push({
@@ -189,19 +191,16 @@ async function _changeSkuVariRequest(mlb, vari, sku, item) {
     value_name: sku
   })
 
+  let url = `items/${mlb}` + (vari) ? `/variations/${vari}` : '';
 
   //Perform the request
-  const response = request(`items/${mlb}/variations/${vari}`, 'PUT', {
-    id: vari,
+  const response = request(url, 'PUT', {
+    id: id,
     attributes: item.attributes
   });
   let apiResponse = await response;
-  
-  return _handleVariResponse(mlb, vari, sku, apiResponse);
-}
 
-async function _changeSkuReg(mlb, sku) {
-  throw new Error("Not implemented!");
+  return _handleChangeResponse(mlb, vari, sku, item, apiResponse);
 }
 
 
@@ -210,40 +209,41 @@ async function _changeSkuReg(mlb, sku) {
  * @param {string} mlb Item's MLB
  * @param {string} vari Item's Variation ID, as string
  * @param {string} sku SKU that will be assigned to the item.
+ * @param {MLItemResponse} item Object returned by getItemVari.
  * @param {MLSkuAlterationResponse} apiResponse Object returned by _changeSkuVariRequest
  * @returns 
  */
-function _handleVariResponse(mlb, vari, sku, apiResponse) {
-  let newLength, newsku, tag;
+function _handleChangeResponse(mlb, vari, sku, item, apiResponse) {
+  let oldLength, newLength, newsku, tag;
   try {
     //Sanity check the response
-    if (!apiResponse || !Array.isArray(apiResponse) || !Array.isArray(apiResponse.attributes)) 
-      throw [onErr("Invalid response data.", JSON.stringify(apiResponse,null,2)), tag = 'fail-sanity'];
-    
-    //Server answers with a array of all variations, choose the one with our ID to parse.
-    apiResponse = apiResponse[apiResponse.findIndex(elem => elem.id && elem.id.toString() === vari)];
-    if (!apiResponse)
-      throw [onErr("Failed to find variation in response!"), apiResponse, tag = 'fail-nosuchvari'];
-    
+    if (!apiResponse || !Array.isArray(apiResponse) || !Array.isArray(apiResponse.attributes))
+      throw [onErr("Invalid response data.", JSON.stringify(apiResponse, null, 2)), tag = 'fail-sanity'];
+
+    if (vari) {
+      //Server answers with a array of all variations, choose the one with our ID to parse.
+      apiResponse = apiResponse[apiResponse.findIndex(elem => elem.id && elem.id.toString() === vari)];
+      if (!apiResponse)
+        throw [onErr("Failed to find variation in response!"), apiResponse, tag = 'fail-nosuchvari'];
+    }
 
     //Server answered with some warnings, but mostly successfully (probably?)
-    if (apiResponse.warnings) 
-      throw  [onErr(`Warnings: ${JSON.stringify(apiResponse, null, 2)}`, false), tag = 'warnings'];
-    
+    if (apiResponse.warnings)
+      throw [onErr(`Warnings: ${JSON.stringify(apiResponse, null, 2)}`, false), tag = 'warnings'];
 
     //Get some data of the answer
     newLength = apiResponse.attributes.length;
     newsku = getSkuFromItem(apiResponse);
     if (newsku !== sku)
-      throw [onErr("SKU wasn't set correctly\n" + JSON.stringify(apiResponse,null,2), false), tag = 'fail-skunotset'];
+      throw [onErr("SKU wasn't set correctly\n" + JSON.stringify(apiResponse, null, 2), false), tag = 'fail-skunotset'];
 
     //All good
-    console.log(`${mlb}/${vari} SKU is now ${sku}`, false, false);
+    console.log(`${getNotation(mlb, vari)} SKU is now ${sku}`, false, false);
+    oldLength = item.attributes.length;
     tag = `new-${oldLength}-${newLength}`;
-
   } finally {
     //Backup the data no matter what
-    createBackup(mlb, apiResponse, 'vari', vari, 'sku', currentSku, 'to', sku, tag);
+    createBackup(mlb, apiResponse, ...(vari ? ['vari', vari]:[]), 'sku', currentSku, 'to', sku, tag);
   }
   return SUCCESS;
 }
