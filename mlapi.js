@@ -1,10 +1,10 @@
+'use strict';
 /**
  * API Implementation
 **/
 let fetch = require('node-fetch');
 const fs = require('fs');
 const path = require('path');
-const { cursorTo } = require('readline');
 const [SUCCESS, FAILURE] = [Symbol("Success"), Symbol("Failure")];
 
 /**
