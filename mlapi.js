@@ -5,7 +5,7 @@
 let fetch = require('node-fetch');
 const fs = require('fs');
 const path = require('path');
-const [SUCCESS, FAILURE] = [Symbol("Success"), Symbol("Failure")];
+const [SUCCESS, FAILURE, WARNINGS] = [Symbol("Success"), Symbol("Failure"), Symbol("Warnings")];
 
 /**
  * Constants
@@ -158,10 +158,10 @@ async function _changeSkuVari(mlb, vari, sku) {
   //Check if it is necessary to replace the SKU, create backups
   let tag = 'ok';
   try {
-    if (currentSku === sku) {
-      tag = 'unchanged';
-      throw onErr(`SKU for ${getNotation(mlb,vari)} is already ${sku}`, false, false)
-    }
+    if (currentSku === sku) 
+      throw {message: `SKU for ${getNotation(mlb,vari)} is already ${sku}`, tag: tag = 'unchanged'};
+  } catch (e) {
+    return onErr(e.message, e.tag);
   } finally {
     createBackup(mlb, item, ...(vari ? ['vari', vari]:[]), 'sku', currentSku, 'to', sku, tag);
   }
@@ -218,29 +218,33 @@ function _handleChangeResponse(mlb, vari, sku, item, apiResponse) {
   try {
     //Sanity check the response
     if (!apiResponse || !Array.isArray(apiResponse) || !Array.isArray(apiResponse.attributes))
-      throw [onErr("Invalid response data.", JSON.stringify(apiResponse, null, 2)), tag = 'fail-sanity'];
+      throw {message: "Invalid response data.", object: apiResponse, tag: tag = 'fail-sanity'};
 
     if (vari) {
       //Server answers with a array of all variations, choose the one with our ID to parse.
       apiResponse = apiResponse[apiResponse.findIndex(elem => elem.id && elem.id.toString() === vari)];
       if (!apiResponse)
-        throw [onErr("Failed to find variation in response!"), apiResponse, tag = 'fail-nosuchvari'];
+        throw {message: "Failed to find variation in response!", apiResponse, tag: tag = 'fail-nosuchvari'};
     }
 
     //Server answered with some warnings, but mostly successfully (probably?)
     if (apiResponse.warnings)
-      throw [onErr(`Warnings: ${JSON.stringify(apiResponse, null, 2)}`, false), tag = 'warnings'];
+      throw {fatal: false, message: 'There were warnings on the answer.', object : apiResponse, tag: tag = 'warnings'};
 
     //Get some data of the answer
     newLength = apiResponse.attributes.length;
     newsku = getSkuFromItem(apiResponse);
     if (newsku !== sku)
-      throw [onErr("SKU wasn't set correctly\n" + JSON.stringify(apiResponse, null, 2), false), tag = 'fail-skunotset'];
+      throw {message: "SKU wasn't set correctly\n", object: apiResponse, tag: tag = 'fail-skunotset'};
 
     //All good
     console.log(`${getNotation(mlb, vari)} SKU is now ${sku}`, false, false);
     oldLength = item.attributes.length;
     tag = `new-${oldLength}-${newLength}`;
+  } catch (e) {
+    if (e.fatal !== false) 
+      return onErr(e.message, e.object, e.tag); //Halt
+    onErr(e.message, e.object, e.tag); //Execution continues, non-fatal error.
   } finally {
     //Backup the data no matter what
     createBackup(mlb, apiResponse, ...(vari ? ['vari', vari]:[]), 'sku', currentSku, 'to', sku, tag);
