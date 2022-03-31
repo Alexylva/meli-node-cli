@@ -70,14 +70,9 @@ function getItemVari(mlb, vari) {
  * @param {string} vari Item's Variation ID, as string
  * @param {string} sku SKU that will be assigned to the item.
  */
-function changeSku(mlb, vari, sku, verbose = false) {
+function changeSku(mlb, vari, sku) {
   if (!isMLBValid(mlb)) throw new Error("Invalid MLB");
-
-  if (isVariValid(vari)) {
-    _changeSkuVari(mlb, vari, sku); //Has variation
-  } else {
-    _changeSkuReg(mlb, sku); //Hasn't
-  }
+  return _changeSku(mlb, vari, sku); //Has variation
 }
 
 /**
@@ -146,7 +141,7 @@ module.exports = {
  * @param {string} sku SKU that will be assigned to the item.
  * @returns 
  */
-async function _changeSkuVari(mlb, vari, sku) {
+async function _changeSku(mlb, vari, sku) {
   //Get original item
   const item = await ((vari) ? getItemVari(mlb, vari) : getItem(mlb));
   if (isError(item)) return onErr('Unknown item error', item.message);
@@ -167,7 +162,7 @@ async function _changeSkuVari(mlb, vari, sku) {
   }
 
   //Changing SKU required, sends request to change
-  return _changeSkuVariRequest(mlb, vari, sku, item);
+  return _changeSkuRequest(mlb, vari, sku, item);
 }
 
 
