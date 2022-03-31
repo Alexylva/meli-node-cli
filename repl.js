@@ -72,7 +72,14 @@ let repl = {
       help: 'Manually changes a ad\'s SKU',
       action(param) {
         if (!sessionApi.hasAccessToken()) return onErr('Missing or Invalid Access Token.');
-        let params = param.split(" ", 4);
+        let params = param.split(" ", 3);
+        let mlb, vari, sku;
+        if (params.length < 2 || params.length > 3) 
+          throw onErr("Invalid parameters");
+        if (params.length === 2) 
+          [mlb, undefined, sku] = params;
+        else (params.length === 3)
+          [mlb, vari, sku] = params;
         mlApi.changeSku(...params);
       }
     });
