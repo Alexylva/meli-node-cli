@@ -98,7 +98,8 @@ let repl = {
         if (!sessionApi.hasAccessToken()) return onErr('Missing or Invalid Access Token.');
         mlApi.createTestUser().then((testUser) => {
           if (!testUser) return onErr('Failed creating test user.')
-          sessionApi.addTestUser(testUser);
+          console.log(JSON.stringify(testUser));
+          //sessionApi.addTestUser(testUser);
         })
       }
     })
