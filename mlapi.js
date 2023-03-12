@@ -1,10 +1,11 @@
-'use strict';
+
 /**
  * API Implementation
 **/
 let fetch = require('node-fetch');
 const fs = require('fs');
 const path = require('path');
+const { exit } = require('process');
 const [SUCCESS, FAILURE, WARNINGS] = [Symbol("Success"), Symbol("Failure"), Symbol("Warnings")];
 
 /**
@@ -82,8 +83,11 @@ function changeSku(mlb, vari, sku) {
  */
 function batchChangeSku(file) {
   return new Promise((resolve) => {
-    let csv = require('jquery-csv');
-    let fileContent;
+    let csv = require('jquery-csv'),
+        fileContent,
+        mlb,
+        vari,
+        sku;
 
     try {
       fileContent = fs.readFileSync(path.resolve(file), 'UTF-8');
@@ -96,6 +100,7 @@ function batchChangeSku(file) {
 
       for (let i = 1; i < array.length; i++) { //Loops through the array
         [mlb, vari, sku] = array[i];
+        
         await new Promise((resolve) => { //Executes in set time interval synchronously to not overload the API.
           setTimeout(() => {
             console.log(`batch: [${i}/${array.length}] ${array[i]}`, false, false);
@@ -180,19 +185,26 @@ async function _changeSkuRequest(mlb, vari, sku, item) {
 
   let id = (vari) ? vari : mlb;
 
+  let hasSellerSku = item.attributes.findIndex(elem => elem.id === "SELLER_SKU"); //Removes current SELLER_SKU
+  if (hasSellerSku < 0) {
+    console.log (`${mlb} already has SELLER_SKU, removing`);
+    item.attributes.splice(hasSellerSku);
+  }
+
   //Push the sku into the item attributes.
   item.attributes.push({
     id: "SELLER_SKU",
     value_name: sku
   })
 
-  let url = `items/${mlb}` + (vari) ? `/variations/${vari}` : '';
+  let url = `items/${mlb}` + ((vari) ? `/variations/${vari}` : '');
 
   //Perform the request
-  const response = request(url, 'PUT', {
-    id: id,
-    attributes: item.attributes
-  });
+  let reqData = { attributes: item.attributes };
+  if (vari) 
+    reqData.id = id;
+
+  const response = request(url, 'PUT', reqData);
   let apiResponse = await response;
 
   return _handleChangeResponse(mlb, vari, sku, item, apiResponse);
@@ -212,8 +224,8 @@ function _handleChangeResponse(mlb, vari, sku, item, apiResponse) {
   let oldLength, newLength, newsku, tag;
   try {
     //Sanity check the response
-    if (!apiResponse || !Array.isArray(apiResponse) || !Array.isArray(apiResponse.attributes))
-      throw {message: "Invalid response data.", object: apiResponse, tag: tag = 'fail-sanity'};
+    if (!apiResponse)
+      throw {message: "Invalid response data.", object: apiResponse[0], tag: tag = 'fail-sanity'};
 
     if (vari) {
       //Server answers with a array of all variations, choose the one with our ID to parse.
@@ -242,7 +254,7 @@ function _handleChangeResponse(mlb, vari, sku, item, apiResponse) {
     onErr(e.message, e.object, e.tag); //Execution continues, non-fatal error.
   } finally {
     //Backup the data no matter what
-    createBackup(mlb, apiResponse, ...(vari ? ['vari', vari]:[]), 'sku', currentSku, 'to', sku, tag);
+    createBackup(mlb, apiResponse, ...(vari ? ['vari', vari]:[]), 'sku', 'to', sku, tag);
   }
   return SUCCESS;
 }
