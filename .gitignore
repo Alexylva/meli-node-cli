@@ -150,3 +150,5 @@ dist
 .session/
 .backups/
 .import/
+skus.csv
+*.csv
