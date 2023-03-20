@@ -34,15 +34,27 @@ function setup(accessTokenGetter, accessTokenSetter, appKeysGetter) {
 function fetchAccessToken(auth, redirect_uri) {
   const appkeys = getAppKeys();
   return request('oauth/token', 'POST',
-    `grant_type=authorization_code
-     &client_id=${appkeys.app_id}
-     &client_secret=${appkeys.secret}
-     &code=${auth}
-     &redirect_uri=${redirect_uri}`, {
+    `grant_type=authorization_code` + 
+    `&client_id=${appkeys.app_id}` +
+    `&client_secret=${appkeys.secret}` +
+    `&code=${auth}` +
+    `&redirect_uri=${redirect_uri}`, {
       'accept': 'application/json',
       'content-type': 'application/x-www-form-urlencoded'
     },
   );
+
+  // Fallback
+    /* curl -X POST \
+    -H 'accept: application/json' \
+    -H 'content-type: application/x-www-form-urlencoded' \
+    'https://api.mercadolibre.com/oauth/token' \
+    -d 'grant_type=authorization_code' \
+    -d 'client_id=7740117095200548' \
+    -d 'client_secret=ssxPhWJcrPYTJm3NZLqrwDNOhrugS7qk' \
+    -d 'code=TG-6413c35c61dfa80001052c4f-486163081' \
+    -d 'redirect_uri=http://localhost:63771/code'
+  */
 }
 
 /**
@@ -104,6 +116,7 @@ function batchChangeSku(file) {
         await new Promise((resolve) => { //Executes in set time interval synchronously to not overload the API.
           setTimeout(() => {
             console.log(`batch: [${i}/${array.length}] ${array[i]}`, false, false);
+            changeSku(mlb, null, sku);
             changeSku(mlb, vari, sku);
             resolve();
           }, API_INTERVAL);
