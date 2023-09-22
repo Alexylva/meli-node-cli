@@ -5,16 +5,19 @@
 let fetch = require('node-fetch');
 const fs = require('fs');
 const path = require('path');
-const { exit } = require('process');
+const { exit, off } = require('process');
+const { v4: uuidv4 } = require('uuid');
 const [SUCCESS, FAILURE, WARNINGS] = [Symbol("Success"), Symbol("Failure"), Symbol("Warnings")];
 
 /**
  * Constants
  */
 let setAccessToken, getAccessToken, getAppKeys;
-const API_URL = 'https://api.mercadolibre.com/';
-const API_INTERVAL = 700;//ms
-const BACKUP_PATH = "./.backups/"; // ❕ Later move to constants file?
+const API_URL = 'https://api.mercadolibre.com/'
+    , API_INTERVAL = 700//ms
+    , BACKUP_PATH = "./.backups/" // ❕ Later move to constants file?
+    , ADS_PATH = "./.adsoutput/"
+;
 
 function setup(accessTokenGetter, accessTokenSetter, appKeysGetter) {
   return new Promise(resolve => {
@@ -74,6 +77,153 @@ function getItemVari(mlb, vari) {
   return request(`items/${mlb}/variations/${vari}`);
 }
 
+async function delay(ms) {
+  return new Promise( (resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+/**
+ * Exports all ads in the current account to a CSV file
+ */
+async function getAllAds() {
+  const csv = require('jquery-csv')
+      , user = await getMe()
+      , mlbsList = [ [ "MLB" ] ]
+      , detailedAdsList = [ ['Code', 'Item ID', 'Title', 'Subtitle', 'Price', 'Base Price', 'Original Price', 'Initial Quantity', 'Available Quantity', 'Sold Quantity', 'Start Time', 'Permalink', 'Video ID', 'Free Shipping', 'Logistic Type', 'Variation ID', 'Variation Price', 'Variation Attribute ID', 'Variation Attribute Value', 'Variation Available Quantity', 'Variation Sold Quantity', 'Seller Custom Field', 'Catalog Product ID', 'Inventory ID', 'User Product ID', 'Item Status', 'Catalog Product ID (Body)', 'Seller Custom Field (Body)', 'Parent Item ID', 'Date Created (Body)', 'Last Updated (Body)', 'Health (Body)', 'Catalog Listing (Body)'] ]
+      , errorsList = [ [ "Error", "Request", "Product" ] ]
+      , adslimit = 20 // Imposed by the maximum amount of items allowed by items api multiget
+      ;
+  let i = 3;
+
+  let scrollid = "";
+  while (true) {
+    // Requests the data
+    console.log("Scan request")
+    const req = await request(`users/${user.id}/items/search?search_type=scan&limit=${adslimit}` + scrollid);
+    console.log("Scan request done")
+
+    // Some safety API delay
+    await delay(API_INTERVAL);
+
+    // Gets the important fields
+    const { paging : { limit, total } , results, scroll_id } = req;
+
+    // Gets info on every MLB on response
+    const adData = await request(`items?ids=${results.join(',')}`);
+    await delay(API_INTERVAL);
+
+    // Extract data from each product
+    adData.forEach(product => {
+        try {
+          // Attempt to extract data from the object
+          detailedAdsList.push(...productJsonToArray(product));
+        } catch (e) {
+          // Stringify errors into array
+          errorsList.push( [e] );
+          console.error(e);
+        }
+      }
+    )
+    
+    // Sets the necessary ID for ML to send the next batch of data
+    scrollid = `&scroll_id=${scroll_id}`;
+
+    // Store the MLB-only list, for reasons
+    mlbsList.push(...results.map(elem => [elem]));
+
+    console.log(`(${mlbsList.length} / ${total}) Processing ads (Errors: ${errorsList.length} / Variations: ${detailedAdsList.length})`);
+    
+    if (i > 0) 
+      break;
+    else 
+      i--
+
+
+    // If reached all MLBs, we're done
+    if (mlbsList.length >= total) {
+      break;
+    }
+  }
+
+  const uuid = uuidv4() 
+      , mlbsCsv = csv.fromArrays(mlbsList)
+      , detailedAdsCsv = csv.fromArrays(detailedAdsList)
+      , errorsCsv = csv.fromArrays(errorsList)
+      , ads_path = path.resolve(ADS_PATH); //Make absolute path
+  ;
+  
+  createFile(path.join(ads_path, `mlbs ${uuid}.csv`), mlbsCsv);
+  createFile(path.join(ads_path, `ads ${uuid}.csv`), detailedAdsCsv);
+  createFile(path.join(ads_path, `errors ${uuid}.csv`), errorsCsv);
+
+  console.log("Files created");
+}
+
+/* Extracts select product fields into 2D array */
+function productJsonToArray(product) {
+  const { code, body : { shipping, variations }, body } = product
+      , ret = []
+      , makeProduct = (variation) => [
+          code,
+          body.id,
+          body.title,
+          body.subtitle,
+          body.price,
+          body.base_price,
+          body.original_price,
+          body.initial_quantity,
+          body.available_quantity,
+          body.sold_quantity,
+          body.start_time,
+          body.permalink,
+          body.video_id,
+          shipping?.free_shipping, 
+          shipping?.logistic_type,
+          variation?.id,
+          variation?.price,
+          variation?.attribute_combinations[0]?.id, // No support for multiple variations yet :x
+          variation?.attribute_combinations[0]?.value_name, // No support for multiple variations yet :x
+          variation?.available_quantity,
+          variation?.sold_quantity,
+          variation?.seller_custom_field,
+          variation?.catalog_product_id,
+          variation?.inventory_id,
+          variation?.user_product_id,
+          body.status,
+          body.catalog_product_id,
+          body.seller_custom_field,
+          body.parent_item_id,
+          body.date_created,
+          body.last_updated,
+          body.health,
+          body.catalog_listing
+      ]
+  ;
+
+  // Needs a line per variation, or a single line for unique prods
+  if (variations?.length > 0) {
+    // Has variations
+    variations.forEach(vari => {
+      ret.push( makeProduct(vari) );
+    })
+  } else { 
+    ret.push(makeProduct());
+  }
+  return ret;
+}
+
+function createFile(filePath, contents) {
+  // Get the directory path from the file path
+  const directoryPath = path.dirname(filePath);
+
+  // Create the directory (including parent directories) if it doesn't exist
+  fs.mkdirSync(directoryPath, { recursive: true });
+
+  // Use fs.writeFileSync to create the file and write the contents
+  fs.writeFileSync(filePath, contents);
+
+}
 
 
 /**
@@ -144,7 +294,8 @@ module.exports = {
   getMe,
   getItem,
   getItemVari,
-  createTestUser
+  createTestUser,
+  getAllAds 
 }
 
 /**

@@ -92,6 +92,13 @@ let repl = {
     
     })
 
+    r.defineCommand('getAllAds', {
+      help: "Exports a list of MLBs, variation IDs and assigned SKUs",
+      action() {
+        mlApi.getAllAds();
+      }
+    })
+
     r.defineCommand('createTestUser', {
       help: 'Creates a testing purpose user.',
       action() {
