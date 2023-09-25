@@ -86,7 +86,7 @@ async function delay(ms) {
 /**
  * Exports all ads in the current account to a CSV file
  */
-async function getAllAds() {
+async function getAllAds(filenamePrefix) {
   const csv = require('jquery-csv')
       , user = await getMe()
       , mlbsList = [ [ "MLB" ] ]
@@ -94,14 +94,13 @@ async function getAllAds() {
       , errorsList = [ [ "Error", "Request", "Product" ] ]
       , adslimit = 20 // Imposed by the maximum amount of items allowed by items api multiget
       ;
-  let i = 3;
 
   let scrollid = "";
   while (true) {
     // Requests the data
-    console.log("Scan request")
+    console.info("Scan request")
     const req = await request(`users/${user.id}/items/search?search_type=scan&limit=${adslimit}` + scrollid);
-    console.log("Scan request done")
+    console.info("Scan request done")
 
     // Some safety API delay
     await delay(API_INTERVAL);
@@ -110,7 +109,9 @@ async function getAllAds() {
     const { paging : { limit, total } , results, scroll_id } = req;
 
     // Gets info on every MLB on response
+    console.info("Ads request");
     const adData = await request(`items?ids=${results.join(',')}`);
+    console.info("Ads request done");
     await delay(API_INTERVAL);
 
     // Extract data from each product
@@ -132,16 +133,10 @@ async function getAllAds() {
     // Store the MLB-only list, for reasons
     mlbsList.push(...results.map(elem => [elem]));
 
-    console.log(`(${mlbsList.length} / ${total}) Processing ads (Errors: ${errorsList.length} / Variations: ${detailedAdsList.length})`);
-    
-    if (i > 0) 
-      break;
-    else 
-      i--
-
+    console.log(`(${mlbsList.length - 1} / ${total}) Processing ads (Errors: ${errorsList.length - 1} / Unique + Vari: ${detailedAdsList.length - 1})`);
 
     // If reached all MLBs, we're done
-    if (mlbsList.length >= total) {
+    if (mlbsList.length - 1 >= total) {
       break;
     }
   }
@@ -153,9 +148,9 @@ async function getAllAds() {
       , ads_path = path.resolve(ADS_PATH); //Make absolute path
   ;
   
-  createFile(path.join(ads_path, `mlbs ${uuid}.csv`), mlbsCsv);
-  createFile(path.join(ads_path, `ads ${uuid}.csv`), detailedAdsCsv);
-  createFile(path.join(ads_path, `errors ${uuid}.csv`), errorsCsv);
+  createFile(path.join(ads_path, `${filenamePrefix} mlbs ${uuid}.csv`), mlbsCsv);
+  createFile(path.join(ads_path, `${filenamePrefix} ads ${uuid}.csv`), detailedAdsCsv);
+  createFile(path.join(ads_path, `${filenamePrefix} errors ${uuid}.csv`), errorsCsv);
 
   console.log("Files created");
 }
