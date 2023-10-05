@@ -90,7 +90,7 @@ async function getAllAds(filenamePrefix) {
   const csv = require('jquery-csv')
       , user = await getMe()
       , mlbsList = [ [ "MLB" ] ]
-      , detailedAdsList = [ ['Code', 'Item ID', 'Title', 'Subtitle', 'Price', 'Base Price', 'Original Price', 'Initial Quantity', 'Available Quantity', 'Sold Quantity', 'Start Time', 'Permalink', 'Video ID', 'Free Shipping', 'Logistic Type', 'Variation ID', 'Variation Price', 'Variation Attribute ID', 'Variation Attribute Value', 'Variation Available Quantity', 'Variation Sold Quantity', 'Seller Custom Field', 'Catalog Product ID', 'Inventory ID', 'User Product ID', 'Item Status', 'Catalog Product ID (Body)', 'Seller Custom Field (Body)', 'Parent Item ID', 'Date Created (Body)', 'Last Updated (Body)', 'Health (Body)', 'Catalog Listing (Body)'] ]
+      , detailedAdsList = [ ['Code', 'Item ID', 'Title', 'Subtitle', 'Price', 'Base Price', 'Original Price', 'Inventory ID (Body)', 'Initial Quantity', 'Available Quantity', 'Sold Quantity', 'Start Time', 'Permalink', 'Video ID', 'Free Shipping', 'Logistic Type', 'Variation ID', 'Variation Price', 'Variation Attribute ID', 'Variation Attribute Value', 'Variation Available Quantity', 'Variation Sold Quantity', 'Seller Custom Field', 'Catalog Product ID', 'Inventory ID (Variation)', 'User Product ID', 'Item Status', 'Catalog Product ID (Body)', 'Seller Custom Field (Body)', 'Parent Item ID', 'Date Created (Body)', 'Last Updated (Body)', 'Health (Body)', 'Catalog Listing (Body)'] ]
       , errorsList = [ [ "Error", "Request", "Product" ] ]
       , adslimit = 20 // Imposed by the maximum amount of items allowed by items api multiget
       ;
@@ -167,6 +167,7 @@ function productJsonToArray(product) {
           body.price,
           body.base_price,
           body.original_price,
+          body.inventory_id,
           body.initial_quantity,
           body.available_quantity,
           body.sold_quantity,
