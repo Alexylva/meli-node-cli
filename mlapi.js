@@ -88,12 +88,47 @@ async function delay(ms) {
  */
 async function getAllAds(filenamePrefix) {
   const csv = require('jquery-csv')
-      , user = await getMe()
-      , mlbsList = [ [ "MLB" ] ]
-      , detailedAdsList = [ ['Code', 'Item ID', 'Title', 'Subtitle', 'Price', 'Base Price', 'Original Price', 'Inventory ID (Body)', 'Initial Quantity', 'Available Quantity', 'Sold Quantity', 'Start Time', 'Permalink', 'Video ID', 'Free Shipping', 'Logistic Type', 'Variation ID', 'Variation Price', 'Variation Attribute ID', 'Variation Attribute Value', 'Variation Available Quantity', 'Variation Sold Quantity', 'Seller Custom Field', 'Catalog Product ID', 'Inventory ID (Variation)', 'User Product ID', 'Item Status', 'Catalog Product ID (Body)', 'Seller Custom Field (Body)', 'Parent Item ID', 'Date Created (Body)', 'Last Updated (Body)', 'Health (Body)', 'Catalog Listing (Body)'] ]
-      , errorsList = [ [ "Error", "Request", "Product" ] ]
-      , adslimit = 20 // Imposed by the maximum amount of items allowed by items api multiget
-      ;
+    , user = await getMe()
+    , mlbsList = [["MLB"]]
+    , detailedAdsList = [[
+      'Code'
+      , 'Item Status'
+      , 'Item ID'
+      , 'Title'
+      , 'Subtitle'
+      , 'Price'
+      , 'Base Price'
+      , 'Original Price'
+      , 'Inventory ID (Body)'
+      , 'Initial Quantity'
+      , 'Available Quantity'
+      , 'Sold Quantity'
+      , 'Start Time'
+      , 'Free Shipping'
+      , 'Logistic Type'
+      , 'Catalog Listing (Body)'
+      , 'Permalink'
+      , 'Video ID'
+      , 'Health (Body)'
+      , 'Variation ID'
+      , 'Variation Price'
+      , 'Variation Attribute ID'
+      , 'Variation Attribute Value'
+      , 'Variation Available Quantity'
+      , 'Variation Sold Quantity'
+      , 'Seller Custom Field'
+      , 'Catalog Product ID (Variation)'
+      , 'Inventory ID (Variation)'
+      , 'User Product ID (Variation)'
+      , 'Catalog Product ID (Body)'
+      , 'Seller Custom Field (Body)'
+      , 'Parent Item ID'
+      , 'Date Created (Body)'
+      , 'Last Updated (Body)'
+    ]]
+    , errorsList = [["Error", "Request", "Product"]]
+    , adslimit = 20 // Imposed by the maximum amount of items allowed by items api multiget
+    ;
 
   let scrollid = "";
   while (true) {
@@ -157,45 +192,45 @@ async function getAllAds(filenamePrefix) {
 
 /* Extracts select product fields into 2D array */
 function productJsonToArray(product) {
-  const { code, body : { shipping, variations }, body } = product
-      , ret = []
-      , makeProduct = (variation) => [
-          code,
-          body.id,
-          body.title,
-          body.subtitle,
-          body.price,
-          body.base_price,
-          body.original_price,
-          body.inventory_id,
-          body.initial_quantity,
-          body.available_quantity,
-          body.sold_quantity,
-          body.start_time,
-          body.permalink,
-          body.video_id,
-          shipping?.free_shipping, 
-          shipping?.logistic_type,
-          variation?.id,
-          variation?.price,
-          variation?.attribute_combinations[0]?.id, // No support for multiple variations yet :x
-          variation?.attribute_combinations[0]?.value_name, // No support for multiple variations yet :x
-          variation?.available_quantity,
-          variation?.sold_quantity,
-          variation?.seller_custom_field,
-          variation?.catalog_product_id,
-          variation?.inventory_id,
-          variation?.user_product_id,
-          body.status,
-          body.catalog_product_id,
-          body.seller_custom_field,
-          body.parent_item_id,
-          body.date_created,
-          body.last_updated,
-          body.health,
-          body.catalog_listing
-      ]
-  ;
+  const { code, body: { shipping, variations }, body } = product
+    , ret = []
+    , makeProduct = (variation) => [
+      code,
+      body.status,
+      body.id,
+      body.title,
+      body.subtitle,
+      parseNumberForGS(body.price),
+      parseNumberForGS(body.base_price),
+      parseNumberForGS(body.original_price),
+      body.inventory_id,
+      parseNumberForGS(body.initial_quantity),
+      parseNumberForGS(body.available_quantity),
+      parseNumberForGS(body.sold_quantity),
+      convertISOToGMTMinus3(body.start_time),
+      shipping?.free_shipping,
+      shipping?.logistic_type,
+      body.catalog_listing,
+      body.permalink,
+      body.video_id,
+      body.health,
+      variation?.id,
+      parseNumberForGS(variation?.price),
+      variation?.attribute_combinations[0]?.id, // No support for multiple variations yet :x
+      variation?.attribute_combinations[0]?.value_name, // No support for multiple variations yet :x
+      parseNumberForGS(variation?.available_quantity),
+      parseNumberForGS(variation?.sold_quantity),
+      variation?.seller_custom_field,
+      variation?.catalog_product_id,
+      variation?.inventory_id,
+      variation?.user_product_id,
+      body.catalog_product_id,
+      body.seller_custom_field,
+      body.parent_item_id,
+      convertISOToGMTMinus3(body.date_created),
+      convertISOToGMTMinus3(body.last_updated),
+    ]
+    ;
 
   // Needs a line per variation, or a single line for unique prods
   if (variations?.length > 0) {
@@ -208,6 +243,29 @@ function productJsonToArray(product) {
   }
   return ret;
 }
+
+function parseNumberForGS(numberStr) {
+  let str = String(numberStr).replace('.', ',');
+  if (numberStr) {
+    return str;
+  }
+  return '';
+}
+
+function convertISOToGMTMinus3(isoDateStringGMT) {
+  var date = new Date(isoDateStringGMT);
+  date.setHours(date.getHours() - 3);
+
+  var formattedDateString = date.toISOString().replace("T", " ").replace(/\.\d+Z$/, "");
+
+  return formattedDateString;
+}
+
+// Example usage:
+var isoDateStringGMT = "2023-10-05T15:30:00Z";
+var formattedDateString = convertISOToGMTMinus3(isoDateStringGMT);
+console.log(formattedDateString); // Output: "2023-10-05 12:30:00"
+
 
 function createFile(filePath, contents) {
   // Get the directory path from the file path
