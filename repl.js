@@ -37,7 +37,7 @@ let repl = {
     r.defineCommand('accessToken', {
       help: 'Show accessToken',
       action() {
-        sessionApi.getAccessToken();
+        sessionApi.getAccessToken().then(log);
       }
     });
 
@@ -65,7 +65,7 @@ let repl = {
     });
 
     r.defineCommand('getProfile', () =>
-      console.log(`Current slot: ${sessionApi.getSlot()}`, true, false)
+      console.log(`Current slot: ${sessionApi.getProfile()}`, true, false)
     );
 
     r.defineCommand('changeSku', {
@@ -90,6 +90,14 @@ let repl = {
         mlApi.batchChangeSku(filename);
       }
     
+    })
+
+    r.defineCommand('getAllAds', {
+      help: "Exports a list of MLBs, variation IDs and assigned SKUs",
+      action() {
+        // Passes profile name for output filename
+        mlApi.getAllAds(sessionApi.getProfile()); 
+      }
     })
 
     r.defineCommand('createTestUser', {

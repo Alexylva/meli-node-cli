@@ -1,19 +1,23 @@
-'use strict';
+
 /**
  * API Implementation
 **/
 let fetch = require('node-fetch');
 const fs = require('fs');
 const path = require('path');
+const { exit, off } = require('process');
+const { v4: uuidv4 } = require('uuid');
 const [SUCCESS, FAILURE, WARNINGS] = [Symbol("Success"), Symbol("Failure"), Symbol("Warnings")];
 
 /**
  * Constants
  */
 let setAccessToken, getAccessToken, getAppKeys;
-const API_URL = 'https://api.mercadolibre.com/';
-const API_INTERVAL = 700;//ms
-const BACKUP_PATH = "./.backups/"; // ❕ Later move to constants file?
+const API_URL = 'https://api.mercadolibre.com/'
+  , API_INTERVAL = 700//ms
+  , BACKUP_PATH = "./.backups/" // ❕ Later move to constants file?
+  , ADS_PATH = "./.adsoutput/"
+  ;
 
 function setup(accessTokenGetter, accessTokenSetter, appKeysGetter) {
   return new Promise(resolve => {
@@ -33,15 +37,27 @@ function setup(accessTokenGetter, accessTokenSetter, appKeysGetter) {
 function fetchAccessToken(auth, redirect_uri) {
   const appkeys = getAppKeys();
   return request('oauth/token', 'POST',
-    `grant_type=authorization_code
-     &client_id=${appkeys.app_id}
-     &client_secret=${appkeys.secret}
-     &code=${auth}
-     &redirect_uri=${redirect_uri}`, {
-      'accept': 'application/json',
-      'content-type': 'application/x-www-form-urlencoded'
-    },
+    `grant_type=authorization_code` +
+    `&client_id=${appkeys.app_id}` +
+    `&client_secret=${appkeys.secret}` +
+    `&code=${auth}` +
+    `&redirect_uri=${redirect_uri}`, {
+    'accept': 'application/json',
+    'content-type': 'application/x-www-form-urlencoded'
+  },
   );
+
+  // Fallback
+  /* curl -X POST \
+  -H 'accept: application/json' \
+  -H 'content-type: application/x-www-form-urlencoded' \
+  'https://api.mercadolibre.com/oauth/token' \
+  -d 'grant_type=authorization_code' \
+  -d 'client_id=7740117095200548' \
+  -d 'client_secret=ssxPhWJcrPYTJm3NZLqrwDNOhrugS7qk' \
+  -d 'code=TG-6413c35c61dfa80001052c4f-486163081' \
+  -d 'redirect_uri=http://localhost:63771/code'
+*/
 }
 
 /**
@@ -61,6 +77,207 @@ function getItemVari(mlb, vari) {
   return request(`items/${mlb}/variations/${vari}`);
 }
 
+async function delay(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+/**
+ * Exports all ads in the current account to a CSV file
+ */
+async function getAllAds(filenamePrefix) {
+  const csv = require('jquery-csv')
+    , user = await getMe()
+    , mlbsList = [["MLB"]]
+    , detailedAdsList = [[
+      'Code'
+      , 'Item Status'
+      , 'Item ID'
+      , 'Title'
+      , 'Subtitle'
+      , 'Price'
+      , 'Base Price'
+      , 'Original Price'
+      , 'Inventory ID (Body)'
+      , 'Initial Quantity'
+      , 'Available Quantity'
+      , 'Sold Quantity'
+      , 'Start Time'
+      , 'Free Shipping'
+      , 'Logistic Type'
+      , 'Catalog Listing (Body)'
+      , 'Permalink'
+      , 'Video ID'
+      , 'Health (Body)'
+      , 'Variation ID'
+      , 'Variation Price'
+      , 'Variation Attribute ID'
+      , 'Variation Attribute Value'
+      , 'Variation Available Quantity'
+      , 'Variation Sold Quantity'
+      , 'Seller Custom Field'
+      , 'Catalog Product ID (Variation)'
+      , 'Inventory ID (Variation)'
+      , 'User Product ID (Variation)'
+      , 'Catalog Product ID (Body)'
+      , 'Seller Custom Field (Body)'
+      , 'Parent Item ID'
+      , 'Date Created (Body)'
+      , 'Last Updated (Body)'
+    ]]
+    , errorsList = [["Error", "Request", "Product"]]
+    , adslimit = 20 // Imposed by the maximum amount of items allowed by items api multiget
+    ;
+
+  let scrollid = "";
+  while (true) {
+    // Requests the data
+    console.info("Scan request")
+    const req = await request(`users/${user.id}/items/search?search_type=scan&limit=${adslimit}` + scrollid);
+    console.info("Scan request done")
+
+    // Some safety API delay
+    await delay(API_INTERVAL);
+
+    // Gets the important fields
+    const { paging: { limit, total }, results, scroll_id } = req;
+
+    // Gets info on every MLB on response
+    console.info("Ads request");
+    const adData = await request(`items?ids=${results.join(',')}`);
+    console.info("Ads request done");
+    await delay(API_INTERVAL);
+
+    // Extract data from each product
+    adData.forEach(product => {
+      try {
+        // Attempt to extract data from the object
+        detailedAdsList.push(...productJsonToArray(product));
+      } catch (e) {
+        // Stringify errors into array
+        errorsList.push([e]);
+        console.error(e);
+      }
+    }
+    )
+
+    // Sets the necessary ID for ML to send the next batch of data
+    scrollid = `&scroll_id=${scroll_id}`;
+
+    // Store the MLB-only list, for reasons
+    mlbsList.push(...results.map(elem => [elem]));
+
+    console.log(`(${mlbsList.length - 1} / ${total}) Processing ads (Errors: ${errorsList.length - 1} / Unique + Vari: ${detailedAdsList.length - 1})`);
+
+    // If reached all MLBs, we're done
+    if (mlbsList.length - 1 >= total) {
+      break;
+    }
+  }
+
+  const uuid = uuidv4()
+    , mlbsCsv = csv.fromArrays(mlbsList)
+    , detailedAdsCsv = csv.fromArrays(detailedAdsList)
+    , errorsCsv = csv.fromArrays(errorsList)
+    , ads_path = path.resolve(ADS_PATH); //Make absolute path
+  ;
+
+  createFile(path.join(ads_path, `${filenamePrefix} mlbs ${uuid}.csv`), mlbsCsv);
+  createFile(path.join(ads_path, `${filenamePrefix} ads ${uuid}.csv`), detailedAdsCsv);
+  createFile(path.join(ads_path, `${filenamePrefix} errors ${uuid}.csv`), errorsCsv);
+
+  console.log("Files created");
+}
+
+/* Extracts select product fields into 2D array */
+function productJsonToArray(product) {
+  const { code, body: { shipping, variations }, body } = product
+    , ret = []
+    , makeProduct = (variation) => [
+      code,
+      body.status,
+      body.id,
+      body.title,
+      body.subtitle,
+      parseNumberForGS(body.price),
+      parseNumberForGS(body.base_price),
+      parseNumberForGS(body.original_price),
+      body.inventory_id,
+      parseNumberForGS(body.initial_quantity),
+      parseNumberForGS(body.available_quantity),
+      parseNumberForGS(body.sold_quantity),
+      convertISOToGMTMinus3(body.start_time),
+      shipping?.free_shipping,
+      shipping?.logistic_type,
+      body.catalog_listing,
+      body.permalink,
+      body.video_id,
+      body.health,
+      variation?.id,
+      parseNumberForGS(variation?.price),
+      variation?.attribute_combinations[0]?.id, // No support for multiple variations yet :x
+      variation?.attribute_combinations[0]?.value_name, // No support for multiple variations yet :x
+      parseNumberForGS(variation?.available_quantity),
+      parseNumberForGS(variation?.sold_quantity),
+      variation?.seller_custom_field,
+      variation?.catalog_product_id,
+      variation?.inventory_id,
+      variation?.user_product_id,
+      body.catalog_product_id,
+      body.seller_custom_field,
+      body.parent_item_id,
+      convertISOToGMTMinus3(body.date_created),
+      convertISOToGMTMinus3(body.last_updated),
+    ]
+    ;
+
+  // Needs a line per variation, or a single line for unique prods
+  if (variations?.length > 0) {
+    // Has variations
+    variations.forEach(vari => {
+      ret.push(makeProduct(vari));
+    })
+  } else {
+    ret.push(makeProduct());
+  }
+  return ret;
+}
+
+function parseNumberForGS(numberStr) {
+  let str = String(numberStr).replace('.', ',');
+  if (numberStr) {
+    return str;
+  }
+  return '';
+}
+
+function convertISOToGMTMinus3(isoDateStringGMT) {
+  var date = new Date(isoDateStringGMT);
+  date.setHours(date.getHours() - 3);
+
+  var formattedDateString = date.toISOString().replace("T", " ").replace(/\.\d+Z$/, "");
+
+  return formattedDateString;
+}
+
+// Example usage:
+var isoDateStringGMT = "2023-10-05T15:30:00Z";
+var formattedDateString = convertISOToGMTMinus3(isoDateStringGMT);
+console.log(formattedDateString); // Output: "2023-10-05 12:30:00"
+
+
+function createFile(filePath, contents) {
+  // Get the directory path from the file path
+  const directoryPath = path.dirname(filePath);
+
+  // Create the directory (including parent directories) if it doesn't exist
+  fs.mkdirSync(directoryPath, { recursive: true });
+
+  // Use fs.writeFileSync to create the file and write the contents
+  fs.writeFileSync(filePath, contents);
+
+}
 
 
 /**
@@ -82,8 +299,11 @@ function changeSku(mlb, vari, sku) {
  */
 function batchChangeSku(file) {
   return new Promise((resolve) => {
-    let csv = require('jquery-csv');
-    let fileContent;
+    let csv = require('jquery-csv'),
+      fileContent,
+      mlb,
+      vari,
+      sku;
 
     try {
       fileContent = fs.readFileSync(path.resolve(file), 'UTF-8');
@@ -96,9 +316,11 @@ function batchChangeSku(file) {
 
       for (let i = 1; i < array.length; i++) { //Loops through the array
         [mlb, vari, sku] = array[i];
+
         await new Promise((resolve) => { //Executes in set time interval synchronously to not overload the API.
           setTimeout(() => {
             console.log(`batch: [${i}/${array.length}] ${array[i]}`, false, false);
+            changeSku(mlb, null, sku);
             changeSku(mlb, vari, sku);
             resolve();
           }, API_INTERVAL);
@@ -126,7 +348,8 @@ module.exports = {
   getMe,
   getItem,
   getItemVari,
-  createTestUser
+  createTestUser,
+  getAllAds
 }
 
 /**
@@ -153,12 +376,12 @@ async function _changeSku(mlb, vari, sku) {
   //Check if it is necessary to replace the SKU, create backups
   let tag = 'ok';
   try {
-    if (currentSku === sku) 
-      throw {message: `SKU for ${getNotation(mlb,vari)} is already ${sku}`, tag: tag = 'unchanged'};
+    if (currentSku === sku)
+      throw { message: `SKU for ${getNotation(mlb, vari)} is already ${sku}`, tag: tag = 'unchanged' };
   } catch (e) {
     return onErr(e.message, e.tag);
   } finally {
-    createBackup(mlb, item, ...(vari ? ['vari', vari]:[]), 'sku', currentSku, 'to', sku, tag);
+    createBackup(mlb, item, ...(vari ? ['vari', vari] : []), 'sku', currentSku, 'to', sku, tag);
   }
 
   //Changing SKU required, sends request to change
@@ -176,9 +399,15 @@ async function _changeSku(mlb, vari, sku) {
  * @returns 
  */
 async function _changeSkuRequest(mlb, vari, sku, item) {
-  console.log(`Changing SKU for ${getNotation(mlb,vari)} to ${sku}`, false);
+  console.log(`Changing SKU for ${getNotation(mlb, vari)} to ${sku}`, false);
 
   let id = (vari) ? vari : mlb;
+
+  let hasSellerSku = item.attributes.findIndex(elem => elem.id === "SELLER_SKU"); //Removes current SELLER_SKU
+  if (hasSellerSku < 0) {
+    console.log(`${mlb} already has SELLER_SKU, removing`);
+    item.attributes.splice(hasSellerSku);
+  }
 
   //Push the sku into the item attributes.
   item.attributes.push({
@@ -186,13 +415,14 @@ async function _changeSkuRequest(mlb, vari, sku, item) {
     value_name: sku
   })
 
-  let url = `items/${mlb}` + (vari) ? `/variations/${vari}` : '';
+  let url = `items/${mlb}` + ((vari) ? `/variations/${vari}` : '');
 
   //Perform the request
-  const response = request(url, 'PUT', {
-    id: id,
-    attributes: item.attributes
-  });
+  let reqData = { attributes: item.attributes };
+  if (vari)
+    reqData.id = id;
+
+  const response = request(url, 'PUT', reqData);
   let apiResponse = await response;
 
   return _handleChangeResponse(mlb, vari, sku, item, apiResponse);
@@ -212,37 +442,37 @@ function _handleChangeResponse(mlb, vari, sku, item, apiResponse) {
   let oldLength, newLength, newsku, tag;
   try {
     //Sanity check the response
-    if (!apiResponse || !Array.isArray(apiResponse) || !Array.isArray(apiResponse.attributes))
-      throw {message: "Invalid response data.", object: apiResponse, tag: tag = 'fail-sanity'};
+    if (!apiResponse)
+      throw { message: "Invalid response data.", object: apiResponse[0], tag: tag = 'fail-sanity' };
 
     if (vari) {
       //Server answers with a array of all variations, choose the one with our ID to parse.
       apiResponse = apiResponse[apiResponse.findIndex(elem => elem.id && elem.id.toString() === vari)];
       if (!apiResponse)
-        throw {message: "Failed to find variation in response!", apiResponse, tag: tag = 'fail-nosuchvari'};
+        throw { message: "Failed to find variation in response!", apiResponse, tag: tag = 'fail-nosuchvari' };
     }
 
     //Server answered with some warnings, but mostly successfully (probably?)
     if (apiResponse.warnings)
-      throw {fatal: false, message: 'There were warnings on the answer.', object : apiResponse, tag: tag = 'warnings'};
+      throw { fatal: false, message: 'There were warnings on the answer.', object: apiResponse, tag: tag = 'warnings' };
 
     //Get some data of the answer
     newLength = apiResponse.attributes.length;
     newsku = getSkuFromItem(apiResponse);
     if (newsku !== sku)
-      throw {message: "SKU wasn't set correctly\n", object: apiResponse, tag: tag = 'fail-skunotset'};
+      throw { message: "SKU wasn't set correctly\n", object: apiResponse, tag: tag = 'fail-skunotset' };
 
     //All good
     console.log(`${getNotation(mlb, vari)} SKU is now ${sku}`, false, false);
     oldLength = item.attributes.length;
     tag = `new-${oldLength}-${newLength}`;
   } catch (e) {
-    if (e.fatal !== false) 
+    if (e.fatal !== false)
       return onErr(e.message, e.object, e.tag); //Halt
     onErr(e.message, e.object, e.tag); //Execution continues, non-fatal error.
   } finally {
     //Backup the data no matter what
-    createBackup(mlb, apiResponse, ...(vari ? ['vari', vari]:[]), 'sku', currentSku, 'to', sku, tag);
+    createBackup(mlb, apiResponse, ...(vari ? ['vari', vari] : []), 'sku', 'to', sku, tag);
   }
   return SUCCESS;
 }
@@ -258,7 +488,7 @@ function getSkuFromItem(item) {
   return currsku;
 }
 
-function getNotation(mlb,vari) {
+function getNotation(mlb, vari) {
   if (vari)
     return `${mlb}/${vari}`
   return `${mlb}`;

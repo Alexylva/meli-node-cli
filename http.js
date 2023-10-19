@@ -16,7 +16,7 @@ function setup(accessTokenFetcher, sessionApi, appKeysGetter) {
     const server_url = `http://${hostname}:${port}/`
     const auth_resource = `code`;
     const redirect_uri = `${server_url}${auth_resource}`;
-    auth_url = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${getAppKeys().app_id}&redirect_uri=${redirect_uri}`;
+    auth_url = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${getAppKeys().app_id}`;
 
     http.use(express.json());
     http.use(express.urlencoded({ extended: true }));
