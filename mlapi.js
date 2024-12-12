@@ -96,6 +96,7 @@ async function getAllAds(filenamePrefix) {
       , 'Item ID'
       , 'Title'
       , 'Subtitle'
+      , 'Ad type'
       , 'Price'
       , 'Base Price'
       , 'Original Price'
@@ -200,6 +201,7 @@ function productJsonToArray(product) {
       body.id,
       body.title,
       body.subtitle,
+      body.listing_type_id,
       parseNumberForGS(body.price),
       parseNumberForGS(body.base_price),
       parseNumberForGS(body.original_price),
