@@ -130,6 +130,35 @@ let repl = {
       }
     })
 
+    r.defineCommand('getPrices', {
+      help: 'Fetch prices for a specific item by its MLB ID',
+      action(mlb) {
+        if (!sessionApi.hasAccessToken()) return console.error('Missing or Invalid Access Token.');
+        if (!mlApi.isMLBValid(mlb)) return console.error('Invalid MLB ID format. Example: MLB123456789');
+    
+        console.log(`Fetching prices for item ${mlb}...`);
+        mlApi.getItemPrices(mlb).then((prices) => {
+          console.log(JSON.stringify(prices, null, 2));
+        }).catch((err) => {
+          console.error('Error fetching prices:', err);
+        });
+      }
+    });
+    
+    r.defineCommand('getAllPrices', {
+      help: 'Exports all product prices for the account to a CSV file',
+      action(filenamePrefix = 'prices') {
+        if (!sessionApi.hasAccessToken()) return console.error('Missing or Invalid Access Token.');
+    
+        console.log('Exporting all product prices to a CSV file...');
+        mlApi.getAllPrices(filenamePrefix).then(() => {
+          console.log('Price export completed successfully.');
+        }).catch((err) => {
+          console.error('Error exporting prices:', err);
+        });
+      }
+    });    
+
     r.on('exit', () => {
       console.log('Quitting');
       process.exit();

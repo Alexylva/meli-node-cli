@@ -1,4 +1,3 @@
-
 /**
  * API Implementation
 **/
@@ -17,6 +16,7 @@ const API_URL = 'https://api.mercadolibre.com/'
   , API_INTERVAL = 700//ms
   , BACKUP_PATH = "./.backups/" // ❕ Later move to constants file?
   , ADS_PATH = "./.adsoutput/"
+  , PRICES_PATH = "./.pricesoutput/" // ADDED: directory for prices CSV files
   ;
 
 function setup(accessTokenGetter, accessTokenSetter, appKeysGetter) {
@@ -28,11 +28,7 @@ function setup(accessTokenGetter, accessTokenSetter, appKeysGetter) {
 }
 
 /**
- * Used to send a request to ML API for a Access Token, that gives access to most functions.
- * 
- * @param {string} auth Auth token used to generate Access Token
- * @param {string} redirect_uri URI for where the server will send the Access Token.
- * @returns Promise for the token data.
+ * Used to send a request to ML API for a Access Token
  */
 function fetchAccessToken(auth, redirect_uri) {
   const appkeys = getAppKeys();
@@ -46,24 +42,10 @@ function fetchAccessToken(auth, redirect_uri) {
     'content-type': 'application/x-www-form-urlencoded'
   },
   );
-
-  // Fallback
-  /* curl -X POST \
-  -H 'accept: application/json' \
-  -H 'content-type: application/x-www-form-urlencoded' \
-  'https://api.mercadolibre.com/oauth/token' \
-  -d 'grant_type=authorization_code' \
-  -d 'client_id=7740117095200548' \
-  -d 'client_secret=ssxPhWJcrPYTJm3NZLqrwDNOhrugS7qk' \
-  -d 'code=TG-6413c35c61dfa80001052c4f-486163081' \
-  -d 'redirect_uri=http://localhost:63771/code'
-*/
 }
 
 /**
- * Implements the users/me API function, which returns current user data.
- * 
- * @returns Promise for the users/me response.
+ * Implements the users/me API function
  */
 function getMe() {
   return request('users/me');;
@@ -84,7 +66,7 @@ async function delay(ms) {
 }
 
 /**
- * Exports all ads in the current account to a CSV file
+ * Exports all ads in CSV format
  */
 async function getAllAds(filenamePrefix) {
   const csv = require('jquery-csv')
@@ -128,50 +110,39 @@ async function getAllAds(filenamePrefix) {
       , 'Last Updated (Body)'
     ]]
     , errorsList = [["Error", "Request", "Product"]]
-    , adslimit = 20 // Imposed by the maximum amount of items allowed by items api multiget
+    , adslimit = 20 // Imposed by the maximum allowed by items api multiget
     ;
 
   let scrollid = "";
   while (true) {
-    // Requests the data
     console.info("Scan request")
     const req = await request(`users/${user.id}/items/search?search_type=scan&limit=${adslimit}` + scrollid);
     console.info("Scan request done")
 
-    // Some safety API delay
     await delay(API_INTERVAL);
 
-    // Gets the important fields
     const { paging: { limit, total }, results, scroll_id } = req;
 
-    // Gets info on every MLB on response
     console.info("Ads request");
     const adData = await request(`items?ids=${results.join(',')}`);
     console.info("Ads request done");
     await delay(API_INTERVAL);
 
-    // Extract data from each product
     adData.forEach(product => {
       try {
-        // Attempt to extract data from the object
         detailedAdsList.push(...productJsonToArray(product));
       } catch (e) {
-        // Stringify errors into array
         errorsList.push([e]);
         console.error(e);
       }
-    }
-    )
+    })
 
-    // Sets the necessary ID for ML to send the next batch of data
     scrollid = `&scroll_id=${scroll_id}`;
 
-    // Store the MLB-only list, for reasons
     mlbsList.push(...results.map(elem => [elem]));
 
     console.log(`(${mlbsList.length - 1} / ${total}) Processing ads (Errors: ${errorsList.length - 1} / Unique + Vari: ${detailedAdsList.length - 1})`);
 
-    // If reached all MLBs, we're done
     if (mlbsList.length - 1 >= total) {
       break;
     }
@@ -181,8 +152,7 @@ async function getAllAds(filenamePrefix) {
     , mlbsCsv = csv.fromArrays(mlbsList)
     , detailedAdsCsv = csv.fromArrays(detailedAdsList)
     , errorsCsv = csv.fromArrays(errorsList)
-    , ads_path = path.resolve(ADS_PATH); //Make absolute path
-  ;
+    , ads_path = path.resolve(ADS_PATH);
 
   createFile(path.join(ads_path, `${filenamePrefix} mlbs ${uuid}.csv`), mlbsCsv);
   createFile(path.join(ads_path, `${filenamePrefix} ads ${uuid}.csv`), detailedAdsCsv);
@@ -218,8 +188,8 @@ function productJsonToArray(product) {
       body.health,
       variation?.id,
       parseNumberForGS(variation?.price),
-      variation?.attribute_combinations[0]?.id, // No support for multiple variations yet :x
-      variation?.attribute_combinations[0]?.value_name, // No support for multiple variations yet :x
+      variation?.attribute_combinations[0]?.id,
+      variation?.attribute_combinations[0]?.value_name,
       parseNumberForGS(variation?.available_quantity),
       parseNumberForGS(variation?.sold_quantity),
       variation?.seller_custom_field,
@@ -234,9 +204,7 @@ function productJsonToArray(product) {
     ]
     ;
 
-  // Needs a line per variation, or a single line for unique prods
   if (variations?.length > 0) {
-    // Has variations
     variations.forEach(vari => {
       ret.push(makeProduct(vari));
     })
@@ -270,35 +238,21 @@ console.log(formattedDateString); // Output: "2023-10-05 12:30:00"
 
 
 function createFile(filePath, contents) {
-  // Get the directory path from the file path
   const directoryPath = path.dirname(filePath);
-
-  // Create the directory (including parent directories) if it doesn't exist
   fs.mkdirSync(directoryPath, { recursive: true });
-
-  // Use fs.writeFileSync to create the file and write the contents
   fs.writeFileSync(filePath, contents);
-
 }
 
 
 /**
  * Wrapper function that automatically chooses between using the regular or variation
  * of the SKU changing function.
- * @param {string} mlb Item's MLB
- * @param {string} vari Item's Variation ID, as string
- * @param {string} sku SKU that will be assigned to the item.
  */
 function changeSku(mlb, vari, sku) {
   if (!isMLBValid(mlb)) throw new Error("Invalid MLB");
-  return _changeSku(mlb, vari, sku); //Has variation
+  return _changeSku(mlb, vari, sku);
 }
 
-/**
- * Reads a CSV and feeds it into the changeSku function.
- * @param {string} file Path to a file
- * @returns 
- */
 function batchChangeSku(file) {
   return new Promise((resolve) => {
     let csv = require('jquery-csv'),
@@ -313,13 +267,13 @@ function batchChangeSku(file) {
       return onErr("File not found", e);
     }
 
-    let data = csv.toArrays(fileContent, {}, async (err, array) => { //Makes CSV into array
+    let data = csv.toArrays(fileContent, {}, async (err, array) => {
       if (err) return onErr("Error converting to CSV", e);
 
-      for (let i = 1; i < array.length; i++) { //Loops through the array
+      for (let i = 1; i < array.length; i++) {
         [mlb, vari, sku] = array[i];
 
-        await new Promise((resolve) => { //Executes in set time interval synchronously to not overload the API.
+        await new Promise((resolve) => {
           setTimeout(() => {
             console.log(`batch: [${i}/${array.length}] ${array[i]}`, false, false);
             changeSku(mlb, null, sku);
@@ -342,6 +296,125 @@ function createTestUser() {
   }
 }
 
+// ADDED: Get prices for a single item
+/**
+ * Retrieves prices data for a single item.
+ * 
+ * @param {string} mlb The item's MLB ID.
+ * @returns Promise that resolves to the price response object.
+ */
+function getItemPrices(mlb) {
+  return request(`items/${mlb}/prices`);
+}
+
+// ADDED: Extract price array data to 2D array
+/**
+ * Convert a price response to a 2D array for CSV.
+ * @param {object} priceResponse The JSON object returned by getItemPrices.
+ * @returns {array[]} A 2D array suitable for CSV export.
+ */
+function pricesJsonToArray(priceResponse) {
+  const { id, prices } = priceResponse;
+  const ret = [];
+  if (!prices || !Array.isArray(prices)) return ret;
+
+  // Columns:
+  // Item ID | Price ID | Type | Amount | Regular Amount | Currency ID | Last Updated | Context Restrictions | Start Time | End Time
+  prices.forEach(priceObj => {
+    ret.push([
+      id,
+      priceObj.id,
+      priceObj.type,
+      parseNumberForGS(priceObj.amount),
+      parseNumberForGS(priceObj.regular_amount),
+      priceObj.currency_id,
+      convertISOToGMTMinus3(priceObj.last_updated),
+      (priceObj.conditions?.context_restrictions || []).join(';'),
+      priceObj.conditions?.start_time ? convertISOToGMTMinus3(priceObj.conditions.start_time) : '',
+      priceObj.conditions?.end_time ? convertISOToGMTMinus3(priceObj.conditions.end_time) : ''
+    ]);
+  });
+
+  return ret;
+}
+
+// ADDED: Function to list prices for all products in CSV
+/**
+ * Exports all product prices in CSV format.
+ * Similar approach to getAllAds: scans through all items, fetches their prices,
+ * and outputs a CSV file.
+ * 
+ * @param {string} filenamePrefix Prefix for the output filenames.
+ */
+async function getAllPrices(filenamePrefix) {
+  const csv = require('jquery-csv')
+    , user = await getMe()
+    , pricesList = [[
+      'Item ID',
+      'Price ID',
+      'Type',
+      'Amount',
+      'Regular Amount',
+      'Currency ID',
+      'Last Updated',
+      'Context Restrictions',
+      'Start Time',
+      'End Time'
+    ]]
+    , errorsList = [["Error", "Item ID"]]
+    , adslimit = 20;
+
+  let scrollid = "";
+  let total = 0;
+  let processedCount = 0;
+
+  while (true) {
+    console.info("Scan request for prices");
+    const req = await request(`users/${user.id}/items/search?search_type=scan&limit=${adslimit}` + scrollid);
+    console.info("Scan request done");
+    await delay(API_INTERVAL);
+
+    const { paging: { limit, total: totalItems }, results, scroll_id } = req;
+    total = totalItems; // Keep updating total
+
+    console.info("Fetching prices for batch of items...");
+    // Fetch prices one by one to avoid overhead
+    for (const mlb of results) {
+      try {
+        const pricesResponse = await getItemPrices(mlb);
+        await delay(API_INTERVAL);
+        // Check if there's an error
+        if (isError(pricesResponse)) {
+          errorsList.push([pricesResponse.error || 'Unknown Error', mlb]);
+        } else {
+          pricesList.push(...pricesJsonToArray(pricesResponse));
+        }
+      } catch (e) {
+        errorsList.push([e.message, mlb]);
+      }
+      processedCount++;
+      console.log(`Processed ${processedCount}/${total} items`);
+    }
+
+    scrollid = `&scroll_id=${scroll_id}`;
+
+    if (processedCount >= total) {
+      break;
+    }
+  }
+
+  const uuid = uuidv4()
+    , pricesCsv = csv.fromArrays(pricesList)
+    , errorsCsv = csv.fromArrays(errorsList)
+    , prices_path = path.resolve(PRICES_PATH);
+
+  createFile(path.join(prices_path, `${filenamePrefix} prices ${uuid}.csv`), pricesCsv);
+  createFile(path.join(prices_path, `${filenamePrefix} errors ${uuid}.csv`), errorsCsv);
+
+  console.log("Price files created");
+}
+
+
 module.exports = {
   setup,
   fetchAccessToken,
@@ -351,31 +424,22 @@ module.exports = {
   getItem,
   getItemVari,
   createTestUser,
-  getAllAds
+  getAllAds,
+  getItemPrices,       // ADDED
+  getAllPrices         // ADDED
 }
 
 /**
- * Auxiliary API Functions
+ * Auxiliary Functions
  */
 
-/**
- * Changes SKU for a variation.
- * 
- * @param {string} mlb Item's MLB
- * @param {string} vari Item's Variation ID, as string
- * @param {string} sku SKU that will be assigned to the item.
- * @returns 
- */
 async function _changeSku(mlb, vari, sku) {
-  //Get original item
   const item = await ((vari) ? getItemVari(mlb, vari) : getItem(mlb));
   if (isError(item)) return onErr('Unknown item error', item.message);
 
-  //Get current attributes, their length and SKU
   if (!Array.isArray(item.attributes)) item.attributes = [];
   let currentSku = getSkuFromItem(item);
 
-  //Check if it is necessary to replace the SKU, create backups
   let tag = 'ok';
   try {
     if (currentSku === sku)
@@ -386,32 +450,22 @@ async function _changeSku(mlb, vari, sku) {
     createBackup(mlb, item, ...(vari ? ['vari', vari] : []), 'sku', currentSku, 'to', sku, tag);
   }
 
-  //Changing SKU required, sends request to change
   return _changeSkuRequest(mlb, vari, sku, item);
 }
 
-
-/**
- * Auxiliary function that performs a request to change a variation item's SKU.
- * @param {string} mlb Item's MLB
- * @param {string} vari Item's Variation ID, as string
- * @param {string} sku SKU that will be assigned to the item.
- * @param {MLItemResponse} item Object returned by getItemVari.
- * @param {MLVariationItemResponse} item Object returned by getItemVari.
- * @returns 
- */
 async function _changeSkuRequest(mlb, vari, sku, item) {
   console.log(`Changing SKU for ${getNotation(mlb, vari)} to ${sku}`, false);
 
   let id = (vari) ? vari : mlb;
 
-  let hasSellerSku = item.attributes.findIndex(elem => elem.id === "SELLER_SKU"); //Removes current SELLER_SKU
+  let hasSellerSku = item.attributes.findIndex(elem => elem.id === "SELLER_SKU");
   if (hasSellerSku < 0) {
-    console.log(`${mlb} already has SELLER_SKU, removing`);
-    item.attributes.splice(hasSellerSku);
+    // Do nothing if not found, we will add it
+  } else {
+    // Remove existing SELLER_SKU
+    item.attributes.splice(hasSellerSku, 1);
   }
 
-  //Push the sku into the item attributes.
   item.attributes.push({
     id: "SELLER_SKU",
     value_name: sku
@@ -419,7 +473,6 @@ async function _changeSkuRequest(mlb, vari, sku, item) {
 
   let url = `items/${mlb}` + ((vari) ? `/variations/${vari}` : '');
 
-  //Perform the request
   let reqData = { attributes: item.attributes };
   if (vari)
     reqData.id = id;
@@ -430,55 +483,38 @@ async function _changeSkuRequest(mlb, vari, sku, item) {
   return _handleChangeResponse(mlb, vari, sku, item, apiResponse);
 }
 
-
-/**
- * Auxiliary function to perform checks on the API response object and backups.
- * @param {string} mlb Item's MLB
- * @param {string} vari Item's Variation ID, as string
- * @param {string} sku SKU that will be assigned to the item.
- * @param {MLItemResponse} item Object returned by getItemVari.
- * @param {MLSkuAlterationResponse} apiResponse Object returned by _changeSkuVariRequest
- * @returns 
- */
 function _handleChangeResponse(mlb, vari, sku, item, apiResponse) {
   let oldLength, newLength, newsku, tag;
   try {
-    //Sanity check the response
     if (!apiResponse)
-      throw { message: "Invalid response data.", object: apiResponse[0], tag: tag = 'fail-sanity' };
+      throw { message: "Invalid response data.", object: apiResponse, tag: 'fail-sanity' };
 
     if (vari) {
-      //Server answers with a array of all variations, choose the one with our ID to parse.
       apiResponse = apiResponse[apiResponse.findIndex(elem => elem.id && elem.id.toString() === vari)];
       if (!apiResponse)
-        throw { message: "Failed to find variation in response!", apiResponse, tag: tag = 'fail-nosuchvari' };
+        throw { message: "Failed to find variation in response!", apiResponse, tag: 'fail-nosuchvari' };
     }
 
-    //Server answered with some warnings, but mostly successfully (probably?)
     if (apiResponse.warnings)
-      throw { fatal: false, message: 'There were warnings on the answer.', object: apiResponse, tag: tag = 'warnings' };
+      throw { fatal: false, message: 'There were warnings on the answer.', object: apiResponse, tag: 'warnings' };
 
-    //Get some data of the answer
     newLength = apiResponse.attributes.length;
     newsku = getSkuFromItem(apiResponse);
     if (newsku !== sku)
-      throw { message: "SKU wasn't set correctly\n", object: apiResponse, tag: tag = 'fail-skunotset' };
+      throw { message: "SKU wasn't set correctly\n", object: apiResponse, tag: 'fail-skunotset' };
 
-    //All good
     console.log(`${getNotation(mlb, vari)} SKU is now ${sku}`, false, false);
     oldLength = item.attributes.length;
     tag = `new-${oldLength}-${newLength}`;
   } catch (e) {
     if (e.fatal !== false)
-      return onErr(e.message, e.object, e.tag); //Halt
-    onErr(e.message, e.object, e.tag); //Execution continues, non-fatal error.
+      return onErr(e.message, e.object, e.tag);
+    onErr(e.message, e.object, e.tag);
   } finally {
-    //Backup the data no matter what
     createBackup(mlb, apiResponse, ...(vari ? ['vari', vari] : []), 'sku', 'to', sku, tag);
   }
   return SUCCESS;
 }
-
 
 function getSkuFromItem(item) {
   let currsku;
@@ -523,7 +559,6 @@ function makeHeaders() {
   }
 }
 
-
 /**
  * Validity Functions
  */
@@ -549,8 +584,8 @@ function onErr(...e) {
  * Backup Functions
  */
 
-function createBackup(mlb, item, ...tags) { // ❕ perhaps make async?
-  let backup_path = path.resolve(BACKUP_PATH); //Make absolute path
+function createBackup(mlb, item, ...tags) {
+  let backup_path = path.resolve(BACKUP_PATH);
 
   if (!fs.existsSync(backup_path)) {
     try {
@@ -561,12 +596,10 @@ function createBackup(mlb, item, ...tags) { // ❕ perhaps make async?
   }
 
   let backup_file = path.join(backup_path, `${mlb} (${tags.join('-')} @ ${((new Date).valueOf())}).json`);
-  // -> ./backups/90170897681 (vari-tairashop @ 1647448169214).json
 
   try {
     fs.writeFileSync(path.resolve(backup_file), JSON.stringify(item, null, 2));
   } catch (err) {
     console.error(err);
   }
-
 }
