@@ -152,3 +152,4 @@ dist
 .import/
 skus.csv
 *.csv
+/images_folder_python

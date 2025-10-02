@@ -17,6 +17,7 @@ const API_URL = 'https://api.mercadolibre.com/'
   , BACKUP_PATH = "./.backups/" // ❕ Later move to constants file?
   , ADS_PATH = "./.adsoutput/"
   , PRICES_PATH = "./.pricesoutput/" // ADDED: directory for prices CSV files
+  , IMAGES_PATH = "./.imagesoutput/" // ADDED: directory for images CSV files
   ;
 
 function setup(accessTokenGetter, accessTokenSetter, appKeysGetter) {
@@ -76,6 +77,7 @@ async function getAllAds(filenamePrefix) {
       'Code'
       , 'Item Status'
       , 'Item ID'
+      , 'SELLER_SKU' // <<< 1. HEADER ADDED HERE
       , 'Title'
       , 'Subtitle'
       , 'Ad type'
@@ -110,7 +112,7 @@ async function getAllAds(filenamePrefix) {
       , 'Last Updated (Body)'
     ]]
     , errorsList = [["Error", "Request", "Product"]]
-    , adslimit = 20 // Imposed by the maximum allowed by items api multiget
+    , adslimit = 20
     ;
 
   let scrollid = "";
@@ -161,14 +163,120 @@ async function getAllAds(filenamePrefix) {
   console.log("Files created");
 }
 
+/**
+ * Exports all ad images in CSV format
+ */
+async function getAllAdImages(filenamePrefix) {
+  const csv = require('jquery-csv')
+    , user = await getMe()
+    , imageUrlsList = [[
+      'MLB',
+      'Variation ID',
+      'Image Index', // ADDED: Image Index column
+      'Image URL'
+    ]]
+    , errorsList = [["Error", "Request", "Product"]]
+    , adslimit = 20 // Imposed by the maximum allowed by items api multiget
+    ;
+
+  let scrollid = "";
+  let processedAdsCount = 0; // ADDED: Counter for processed ads
+  while (true) {
+    console.info("Scan request for images")
+    const req = await request(`users/${user.id}/items/search?search_type=scan&limit=${adslimit}` + scrollid);
+    console.info("Scan request done for images")
+
+    await delay(API_INTERVAL);
+
+    const { paging: { limit, total }, results, scroll_id } = req;
+
+    console.info("Ads request for images");
+    const adData = await request(`items?ids=${results.join(',')}`);
+    console.info("Ads request done for images");
+    await delay(API_INTERVAL);
+
+    adData.forEach(product => {
+      try {
+        imageUrlsList.push(...productJsonToImageArray(product));
+      } catch (e) {
+        errorsList.push([e, "Processing Product Images", product.body?.id || 'N/A']);
+        console.error(e);
+      }
+    })
+
+    scrollid = `&scroll_id=${scroll_id}`;
+    processedAdsCount += results.length; // ADDED: Increment processed ads count
+
+    console.log(`(${processedAdsCount} / ${total}) Processing ad images (Errors: ${errorsList.length - 1} / Images: ${imageUrlsList.length - 1})`); // Modified log
+
+    if (processedAdsCount >= total) { // Modified condition to check against processedAdsCount
+      break;
+    }
+  }
+
+  const uuid = uuidv4()
+    , imageUrlsCsv = csv.fromArrays(imageUrlsList)
+    , errorsCsv = csv.fromArrays(errorsList)
+    , images_path = path.resolve(IMAGES_PATH); // Using IMAGES_PATH here
+
+  createFile(path.join(images_path, `${filenamePrefix} images ${uuid}.csv`), imageUrlsCsv); // Saving to IMAGES_PATH
+  createFile(path.join(images_path, `${filenamePrefix} errors ${uuid}.csv`), errorsCsv);
+
+  console.log("Image files created");
+}
+
+
+/* Extracts product image URLs into 2D array */
+function productJsonToImageArray(product) {
+  const { code, body: { variations, pictures }, body } = product
+    , ret = []
+    , makeImageRow = (variation, picture, index) => [ // ADDED: index parameter
+      body.id,
+      variation?.id || '', // Variation ID or empty string if no variation
+      index, // ADDED: Image Index
+      picture.secure_url || picture.url // Use secure_url if available, otherwise url
+    ];
+
+  if (pictures && pictures.length > 0) {
+    pictures.forEach((picture, index) => { // ADDED: index in forEach
+      ret.push(makeImageRow(null, picture, index + 1)); // ADDED: index + 1 to start from 1
+    });
+  } else {
+    ret.push(makeImageRow(null, { url: 'No Images Available', secure_url: 'No Images Available' }, '')); // Added empty string for index when no image
+  }
+
+  return ret;
+}
+
+/**
+ * Extracts the SELLER_SKU value from the attributes array.
+ * @param {object} productBody - The 'body' object of a product from the API response.
+ * @returns {string|null} The seller SKU if found, otherwise null.
+ */
+function getSellerSku(productBody) {
+  // Ensure the attributes array exists before trying to search it
+  if (!productBody.attributes) {
+    return null;
+  }
+
+  // Find the attribute object with the id 'SELLER_SKU'
+  const skuAttribute = productBody.attributes.find(attribute => attribute.id === 'SELLER_SKU');
+
+  // Return the 'value_name' if the attribute is found, otherwise return null
+  return skuAttribute ? skuAttribute.value_name : null;
+}
+
 /* Extracts select product fields into 2D array */
 function productJsonToArray(product) {
   const { code, body: { shipping, variations }, body } = product
     , ret = []
+    // <<< 2. GET THE SKU FOR THE CURRENT PRODUCT
+    , sellerSku = getSellerSku(body)
     , makeProduct = (variation) => [
       code,
       body.status,
       body.id,
+      sellerSku, // <<< 3. ADD THE SKU TO THE OUTPUT ARRAY
       body.title,
       body.subtitle,
       body.listing_type_id,
@@ -249,6 +357,10 @@ function createFile(filePath, contents) {
  * of the SKU changing function.
  */
 function changeSku(mlb, vari, sku) {
+  if (typeof sku === 'undefined') {
+    sku = vari;
+    vari = undefined;
+  }
   if (!isMLBValid(mlb)) throw new Error("Invalid MLB");
   return _changeSku(mlb, vari, sku);
 }
@@ -425,8 +537,9 @@ module.exports = {
   getItemVari,
   createTestUser,
   getAllAds,
-  getItemPrices,       // ADDED
-  getAllPrices         // ADDED
+  getAllAdImages,
+  getItemPrices,
+  getAllPrices
 }
 
 /**

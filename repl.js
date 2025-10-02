@@ -147,7 +147,7 @@ let repl = {
     
     r.defineCommand('getAllPrices', {
       help: 'Exports all product prices for the account to a CSV file',
-      action(filenamePrefix = 'prices') {
+      action(filenamePrefix = sessionApi.getProfile() + ' prices') {
         if (!sessionApi.hasAccessToken()) return console.error('Missing or Invalid Access Token.');
     
         console.log('Exporting all product prices to a CSV file...');
@@ -157,7 +157,21 @@ let repl = {
           console.error('Error exporting prices:', err);
         });
       }
-    });    
+    });
+
+    r.defineCommand('getAllImages', {
+      help: 'Exports all product images URLs to a CSV file',
+      action() {
+        if (!sessionApi.hasAccessToken()) return console.error('Missing or Invalid Access Token.');
+
+        console.log('Exporting all product images to a CSV file...');
+        mlApi.getAllAdImages(sessionApi.getProfile()).then(() => {
+          console.log('Image export completed successfully.');
+        }).catch((err) => {
+          console.error('Error exporting images:', err);
+        });
+      }
+    });
 
     r.on('exit', () => {
       console.log('Quitting');
