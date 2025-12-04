@@ -173,6 +173,20 @@ let repl = {
       }
     });
 
+    r.defineCommand('getAllDescriptions', {
+      help: 'Exports all product descriptions (base64 encoded) to a CSV file',
+      action(filenamePrefix = sessionApi.getProfile() + ' descriptions') {
+        if (!sessionApi.hasAccessToken()) return console.error('Missing or Invalid Access Token.');
+
+        console.log('Exporting all product descriptions to a CSV file...');
+        mlApi.getAllAdDescriptions(filenamePrefix).then(() => {
+          console.log('Description export completed successfully.');
+        }).catch((err) => {
+          console.error('Error exporting descriptions:', err);
+        });
+      }
+    });
+
     r.on('exit', () => {
       console.log('Quitting');
       process.exit();

@@ -18,6 +18,7 @@ const API_URL = 'https://api.mercadolibre.com/'
   , ADS_PATH = "./.adsoutput/"
   , PRICES_PATH = "./.pricesoutput/" // ADDED: directory for prices CSV files
   , IMAGES_PATH = "./.imagesoutput/" // ADDED: directory for images CSV files
+  , DESCRIPTIONS_PATH = "./.descriptionsoutput/" // ADDED: directory for descriptions CSV files
   ;
 
 function setup(accessTokenGetter, accessTokenSetter, appKeysGetter) {
@@ -526,6 +527,91 @@ async function getAllPrices(filenamePrefix) {
   console.log("Price files created");
 }
 
+/**
+ * Retrieves description data for a single item.
+ * 
+ * @param {string} mlb The item's MLB ID.
+ * @returns Promise that resolves to the description response object.
+ */
+function getItemDescription(mlb) {
+  return request(`items/${mlb}/description`);
+}
+
+/**
+ * Exports all item descriptions in CSV format with base64 encoding.
+ * 
+ * @param {string} filenamePrefix Prefix for the output filenames.
+ */
+async function getAllAdDescriptions(filenamePrefix) {
+  const csv = require('jquery-csv')
+    , user = await getMe()
+    , descriptionsList = [[
+      'Item ID',
+      'Description Base64',
+      'Last Updated',
+      'Date Created'
+    ]]
+    , errorsList = [["Error", "Item ID"]]
+    , adslimit = 20;
+
+  let scrollid = "";
+  let total = 0;
+  let processedCount = 0;
+
+  while (true) {
+    console.info("Scan request for descriptions");
+    const req = await request(`users/${user.id}/items/search?search_type=scan&limit=${adslimit}` + scrollid);
+    console.info("Scan request done");
+    await delay(API_INTERVAL);
+
+    const { paging: { limit, total: totalItems }, results, scroll_id } = req;
+    total = totalItems;
+
+    console.info("Fetching descriptions for batch of items...");
+    for (const mlb of results) {
+      try {
+        const descResponse = await getItemDescription(mlb);
+        await delay(API_INTERVAL);
+        
+        if (isError(descResponse)) {
+          errorsList.push([descResponse.error || 'Unknown Error', mlb]);
+        } else {
+          // Use plain_text if available, otherwise use text (HTML), encode to base64
+          const descriptionText = descResponse.plain_text || descResponse.text || '';
+          const descriptionBase64 = Buffer.from(descriptionText, 'utf-8').toString('base64');
+          
+          descriptionsList.push([
+            mlb,
+            descriptionBase64,
+            descResponse.last_updated ? convertISOToGMTMinus3(descResponse.last_updated) : '',
+            descResponse.date_created ? convertISOToGMTMinus3(descResponse.date_created) : ''
+          ]);
+        }
+      } catch (e) {
+        errorsList.push([e.message, mlb]);
+      }
+      processedCount++;
+      console.log(`Processed ${processedCount}/${total} item descriptions`);
+    }
+
+    scrollid = `&scroll_id=${scroll_id}`;
+
+    if (processedCount >= total) {
+      break;
+    }
+  }
+
+  const uuid = uuidv4()
+    , descriptionsCsv = csv.fromArrays(descriptionsList)
+    , errorsCsv = csv.fromArrays(errorsList)
+    , descriptions_path = path.resolve(DESCRIPTIONS_PATH);
+
+  createFile(path.join(descriptions_path, `${filenamePrefix} descriptions ${uuid}.csv`), descriptionsCsv);
+  createFile(path.join(descriptions_path, `${filenamePrefix} errors ${uuid}.csv`), errorsCsv);
+
+  console.log("Description files created");
+}
+
 
 module.exports = {
   setup,
@@ -539,7 +625,9 @@ module.exports = {
   getAllAds,
   getAllAdImages,
   getItemPrices,
-  getAllPrices
+  getAllPrices,
+  getItemDescription,
+  getAllAdDescriptions
 }
 
 /**
